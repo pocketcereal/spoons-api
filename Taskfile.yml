@@ -1,0 +1,161 @@
+version: '3'
+
+vars:
+  BINARY_NAME: spoons-api
+  DOCKER_REGISTRY: '{{.REGISTRY | default "ghcr.io"}}'
+  DOCKER_REPOSITORY: '{{.REPOSITORY | default "pocketcereal/spoons-api"}}'
+  DOCKER_TAG: '{{.TAG | default "latest"}}'
+
+tasks:
+  default:
+    desc: Show available tasks
+    cmds:
+      - task --list
+
+  check:
+    desc: Run linting and tests
+    cmds:
+      - task: lint
+      - task: test
+
+  lint:
+    desc: Run clippy linter with auto-fix
+    cmds:
+      - cargo clippy --fix --allow-dirty --allow-staged --all-targets -- -D warnings
+
+  test:
+    desc: Run unit tests (excludes integration tests)
+    cmds:
+      - cargo test --lib --bins
+
+  build:
+    desc: Build release binary
+    cmds:
+      - cargo build --release
+    generates:
+      - target/release/{{.BINARY_NAME}}
+
+  bake:
+    desc: Build docker image using docker buildx bake
+    cmds:
+      - docker buildx bake
+
+  fmt:
+    desc: Format code
+    cmds:
+      - cargo fmt
+
+  fmt-check:
+    desc: Check code formatting
+    cmds:
+      - cargo fmt --check
+
+  clean:
+    desc: Clean build artifacts
+    cmds:
+      - cargo clean
+
+  dev:
+    desc: Run development server
+    cmds:
+      - cargo run -- start --config config.yaml
+
+  run:
+    desc: Run release binary
+    deps: [build]
+    cmds:
+      - ./target/release/{{.BINARY_NAME}} start --config config.yaml
+
+  # Docker tasks
+  docker:up:
+    desc: Start docker services (postgres, redis)
+    cmds:
+      - docker compose up -d
+      - echo "Waiting for postgres to be ready..."
+      - sleep 3
+
+  docker:down:
+    desc: Stop docker services
+    cmds:
+      - docker compose down
+
+  docker:reset:
+    desc: Reset docker volumes (removes all data)
+    cmds:
+      - docker compose down -v
+      - task: docker:up
+
+  # Database tasks
+  db:setup:
+    desc: Install diesel CLI
+    cmds:
+      - cargo install diesel_cli --no-default-features --features postgres
+
+  db:create:
+    desc: Create database
+    env:
+      DATABASE_URL: postgres://spoons:spoons@localhost:5432/spoons
+    cmds:
+      - diesel database setup
+
+  db:migrate:
+    desc: Run database migrations
+    env:
+      DATABASE_URL: postgres://spoons:spoons@localhost:5432/spoons
+    cmds:
+      - diesel migration run
+
+  db:redo:
+    desc: Redo last migration
+    env:
+      DATABASE_URL: postgres://spoons:spoons@localhost:5432/spoons
+    cmds:
+      - diesel migration redo
+
+  db:reset:
+    desc: Reset database (drop and recreate)
+    env:
+      DATABASE_URL: postgres://spoons:spoons@localhost:5432/spoons
+    cmds:
+      - diesel database reset
+
+  # Test database tasks
+  db:test:create:
+    desc: Create test database
+    cmds:
+      - docker exec spoons-postgres psql -U spoons -c "CREATE DATABASE spoons_test;" || true
+
+  db:test:migrate:
+    desc: Run migrations on test database
+    env:
+      DATABASE_URL: postgres://spoons:spoons@localhost:5432/spoons_test
+    cmds:
+      - diesel migration run
+
+  db:test:reset:
+    desc: Reset test database
+    env:
+      DATABASE_URL: postgres://spoons:spoons@localhost:5432/spoons_test
+    cmds:
+      - diesel database reset
+
+  db:test:setup:
+    desc: Setup test database (create + migrate)
+    cmds:
+      - task: db:test:create
+      - task: db:test:migrate
+
+  # Integration tests
+  test:integration:
+    desc: Run integration tests (requires running postgres)
+    env:
+      TEST_DATABASE_URL: postgres://spoons:spoons@localhost:5432/spoons_test
+    cmds:
+      - task: db:test:setup
+      - cargo test --test integration -- --test-threads=1
+
+  test:all:
+    desc: Run all tests (unit + integration)
+    cmds:
+      - task: test
+      - task: test:integration

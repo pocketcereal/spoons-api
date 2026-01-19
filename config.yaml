@@ -1,0 +1,7 @@
+server:
+  port: 4000
+logging:
+  level: info
+  format: json
+musicbrainz:
+  url: https://musicbrainz.org/ws/2/

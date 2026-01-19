@@ -1,0 +1,12 @@
+target/
+.git/
+.gitignore
+.dockerignore
+Dockerfile
+docker-bake.hcl
+Taskfile.yml
+PLAN.md
+*.md
+.github/
+.vscode/
+.idea/

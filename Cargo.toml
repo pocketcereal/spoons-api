@@ -1,0 +1,67 @@
+[package]
+name = "spoons-api"
+version = "0.1.0"
+edition = "2024"
+authors = ["PocketCereal"]
+description = "Spoons API - A REST API for music data"
+license = "MIT"
+
+[dependencies]
+# Web framework
+axum = { version = "0.8", features = ["macros"] }
+tokio = { version = "1", features = ["full"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["trace", "cors"] }
+
+# CLI and configuration
+clap = { version = "4", features = ["derive", "env"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9"
+
+# Logging
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["json", "env-filter", "time", "local-time"] }
+time = { version = "0.3", features = ["formatting", "macros"] }
+
+# Error handling
+anyhow = "1"
+thiserror = "2"
+
+# Auth/JWT
+jsonwebtoken = "9"
+
+# HTTP client
+reqwest = { version = "0.12", features = ["json"] }
+
+# Database
+diesel = { version = "2.2", features = ["postgres", "uuid", "chrono", "serde_json"] }
+diesel-async = { version = "0.5", features = ["postgres", "deadpool", "async-connection-wrapper"] }
+deadpool = "0.12"
+chrono = { version = "0.4", features = ["serde"] }
+
+# Hashing for cache keys
+sha2 = "0.10"
+hex = "0.4"
+
+# UUID
+uuid = { version = "1", features = ["v4", "serde"] }
+
+# Redis
+redis = { version = "0.27", features = ["tokio-comp", "connection-manager"] }
+
+# GraphQL
+async-graphql = "7"
+async-graphql-axum = "7"
+
+# Async utilities
+futures = "0.3"
+
+[dev-dependencies]
+axum-test = "18"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
