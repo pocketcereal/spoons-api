@@ -26,7 +26,10 @@ async fn test_release_group_upsert_and_get() {
     assert_eq!(cached_rg.id, release_group.id);
     assert_eq!(cached_rg.title, release_group.title);
     assert_eq!(cached_rg.primary_type, release_group.primary_type);
-    assert_eq!(cached_rg.first_release_date, release_group.first_release_date);
+    assert_eq!(
+        cached_rg.first_release_date,
+        release_group.first_release_date
+    );
 }
 
 #[tokio::test]
@@ -47,7 +50,10 @@ async fn test_release_group_cache_expiry() {
         .await
         .expect("Failed to get cached release group");
 
-    assert!(cached.is_none(), "Cache should be expired with negative TTL");
+    assert!(
+        cached.is_none(),
+        "Cache should be expired with negative TTL"
+    );
 }
 
 #[tokio::test]

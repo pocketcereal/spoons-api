@@ -147,7 +147,8 @@ impl ApiClient {
                         "External API request completed"
                     );
 
-                    if Self::is_retryable_status(status) && attempt < self.retry_config.max_retries {
+                    if Self::is_retryable_status(status) && attempt < self.retry_config.max_retries
+                    {
                         let delay = self.retry_delay(attempt);
                         tracing::warn!(
                             url = %url,
@@ -192,7 +193,8 @@ impl ApiClient {
             }
         }
 
-        Err(last_error.unwrap_or_else(|| AppError::Server("Request failed after retries".to_string())))
+        Err(last_error
+            .unwrap_or_else(|| AppError::Server("Request failed after retries".to_string())))
     }
 
     async fn handle_response<T: DeserializeOwned>(&self, response: Response) -> Result<T> {

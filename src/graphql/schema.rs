@@ -54,9 +54,10 @@ fn clamp_offset(offset: i32) -> i32 {
 
 /// Returns the Audius client or an error if not configured.
 fn require_audius_client(app_ctx: &AppContext) -> GqlResult<&AudiusClient> {
-    app_ctx.audius_client.as_ref().ok_or_else(|| {
-        AppError::Server("Audius client not available".to_string()).extend()
-    })
+    app_ctx
+        .audius_client
+        .as_ref()
+        .ok_or_else(|| AppError::Server("Audius client not available".to_string()).extend())
 }
 
 /// Searches multiple sources in parallel, combining results and logging failures.
@@ -122,12 +123,7 @@ impl QueryRoot {
         .await
     }
 
-    async fn artist(
-        &self,
-        ctx: &Context<'_>,
-        id: String,
-        source: DataSource,
-    ) -> GqlResult<Artist> {
+    async fn artist(&self, ctx: &Context<'_>, id: String, source: DataSource) -> GqlResult<Artist> {
         let app_ctx = get_app_context(ctx)?;
 
         match source {
@@ -171,12 +167,7 @@ impl QueryRoot {
         .await
     }
 
-    async fn track(
-        &self,
-        ctx: &Context<'_>,
-        id: String,
-        source: DataSource,
-    ) -> GqlResult<Track> {
+    async fn track(&self, ctx: &Context<'_>, id: String, source: DataSource) -> GqlResult<Track> {
         let app_ctx = get_app_context(ctx)?;
 
         match source {
@@ -198,7 +189,6 @@ impl QueryRoot {
             }
         }
     }
-
 }
 
 async fn search_musicbrainz_artists(

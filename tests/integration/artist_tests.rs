@@ -59,7 +59,10 @@ async fn test_artist_cache_expiry() {
         .await
         .expect("Failed to get cached artist");
 
-    assert!(cached.is_none(), "Cache should be expired with negative TTL");
+    assert!(
+        cached.is_none(),
+        "Cache should be expired with negative TTL"
+    );
 }
 
 #[tokio::test]

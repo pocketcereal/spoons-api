@@ -4,15 +4,16 @@
 //! They use seeded data and do NOT make external API calls.
 
 use async_graphql::{EmptyMutation, EmptySubscription, Schema};
-use spoons_api::db::repositories::{ArtistRepository, RecordingRepository, ReleaseRepository, ReleaseGroupRepository};
+use spoons_api::db::repositories::{
+    ArtistRepository, RecordingRepository, ReleaseGroupRepository, ReleaseRepository,
+};
 use spoons_api::graphql::{AppContext, QueryRoot};
 use spoons_api::musicbrainz::MusicBrainzClient;
 
 use crate::common::{
-    TestDb, nirvana_artist, radiohead_artist,
-    nevermind_release, ok_computer_release,
-    smells_like_teen_spirit_recording, paranoid_android_recording,
-    nevermind_release_group, ok_computer_release_group,
+    TestDb, nevermind_release, nevermind_release_group, nirvana_artist, ok_computer_release,
+    ok_computer_release_group, paranoid_android_recording, radiohead_artist,
+    smells_like_teen_spirit_recording,
 };
 
 async fn setup_graphql_test() -> (TestDb, Schema<QueryRoot, EmptyMutation, EmptySubscription>) {
@@ -90,10 +91,16 @@ async fn test_graphql_version_query() {
     "#;
 
     let result = schema.execute(query).await;
-    assert!(result.errors.is_empty(), "Query should succeed: {:?}", result.errors);
+    assert!(
+        result.errors.is_empty(),
+        "Query should succeed: {:?}",
+        result.errors
+    );
 
     let data = result.data.into_json().expect("Failed to convert to JSON");
-    let version = data["version"].as_str().expect("Version should be a string");
+    let version = data["version"]
+        .as_str()
+        .expect("Version should be a string");
     assert_eq!(version, env!("CARGO_PKG_VERSION"));
 }
 
@@ -113,14 +120,30 @@ async fn test_seeded_data_retrieval() {
     let ok_computer_rg = ok_computer_release_group();
 
     // Insert all data
-    ArtistRepository::upsert(&test_db.pool, &nirvana).await.unwrap();
-    ArtistRepository::upsert(&test_db.pool, &radiohead).await.unwrap();
-    ReleaseRepository::upsert(&test_db.pool, &nevermind).await.unwrap();
-    ReleaseRepository::upsert(&test_db.pool, &ok_computer).await.unwrap();
-    RecordingRepository::upsert(&test_db.pool, &smells).await.unwrap();
-    RecordingRepository::upsert(&test_db.pool, &paranoid).await.unwrap();
-    ReleaseGroupRepository::upsert(&test_db.pool, &nevermind_rg).await.unwrap();
-    ReleaseGroupRepository::upsert(&test_db.pool, &ok_computer_rg).await.unwrap();
+    ArtistRepository::upsert(&test_db.pool, &nirvana)
+        .await
+        .unwrap();
+    ArtistRepository::upsert(&test_db.pool, &radiohead)
+        .await
+        .unwrap();
+    ReleaseRepository::upsert(&test_db.pool, &nevermind)
+        .await
+        .unwrap();
+    ReleaseRepository::upsert(&test_db.pool, &ok_computer)
+        .await
+        .unwrap();
+    RecordingRepository::upsert(&test_db.pool, &smells)
+        .await
+        .unwrap();
+    RecordingRepository::upsert(&test_db.pool, &paranoid)
+        .await
+        .unwrap();
+    ReleaseGroupRepository::upsert(&test_db.pool, &nevermind_rg)
+        .await
+        .unwrap();
+    ReleaseGroupRepository::upsert(&test_db.pool, &ok_computer_rg)
+        .await
+        .unwrap();
 
     // Verify all data can be retrieved
     let artists = ArtistRepository::get_by_ids(

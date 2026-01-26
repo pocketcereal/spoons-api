@@ -1,7 +1,7 @@
 //! Test database setup and teardown utilities.
 
-use diesel_async::pooled_connection::deadpool::Pool;
 use diesel_async::pooled_connection::AsyncDieselConnectionManager;
+use diesel_async::pooled_connection::deadpool::Pool;
 use diesel_async::{AsyncPgConnection, RunQueryDsl};
 
 /// Type alias for the test database pool.
@@ -43,7 +43,7 @@ impl TestDb {
                 release_groups,
                 artists,
                 areas
-            CASCADE"
+            CASCADE",
         )
         .execute(&mut conn)
         .await

@@ -37,8 +37,8 @@ mod tests {
 
     #[test]
     fn test_client_config_builder() {
-        let config = ClientConfig::new("https://api.example.com")
-            .with_timeout(Duration::from_secs(60));
+        let config =
+            ClientConfig::new("https://api.example.com").with_timeout(Duration::from_secs(60));
 
         assert_eq!(config.base_url, "https://api.example.com");
         assert_eq!(config.timeout, Duration::from_secs(60));

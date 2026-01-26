@@ -14,7 +14,13 @@ pub fn parse_uuid(id: &str) -> Result<Uuid> {
 /// Get a connection from the pool, returning a database error on failure.
 pub async fn get_conn(
     pool: &DbPool,
-) -> Result<deadpool::managed::Object<diesel_async::pooled_connection::AsyncDieselConnectionManager<diesel_async::AsyncPgConnection>>> {
+) -> Result<
+    deadpool::managed::Object<
+        diesel_async::pooled_connection::AsyncDieselConnectionManager<
+            diesel_async::AsyncPgConnection,
+        >,
+    >,
+> {
     pool.get()
         .await
         .map_err(|e| AppError::Database(format!("Failed to get connection: {}", e)))
@@ -29,8 +35,7 @@ pub fn validate_batch_size(len: usize) -> Result<()> {
     if len > MAX_BATCH_SIZE {
         return Err(AppError::Server(format!(
             "Batch size {} exceeds maximum of {}",
-            len,
-            MAX_BATCH_SIZE
+            len, MAX_BATCH_SIZE
         )));
     }
     Ok(())

@@ -2,7 +2,7 @@
 
 use spoons_api::db::repositories::RecordingRepository;
 
-use crate::common::{TestDb, smells_like_teen_spirit_recording, paranoid_android_recording};
+use crate::common::{TestDb, paranoid_android_recording, smells_like_teen_spirit_recording};
 
 #[tokio::test]
 async fn test_recording_upsert_and_get() {
@@ -47,7 +47,10 @@ async fn test_recording_cache_expiry() {
         .await
         .expect("Failed to get cached recording");
 
-    assert!(cached.is_none(), "Cache should be expired with negative TTL");
+    assert!(
+        cached.is_none(),
+        "Cache should be expired with negative TTL"
+    );
 }
 
 #[tokio::test]

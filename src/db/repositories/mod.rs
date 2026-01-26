@@ -74,7 +74,14 @@ impl MusicRepository {
         let query_owned = query.to_string();
         let artists_for_cache = artists.clone();
         spawn_cache_task("artist search", move || async move {
-            SearchCacheRepository::cache_artist_search(&pool, &query_owned, limit, offset, &artists_for_cache).await
+            SearchCacheRepository::cache_artist_search(
+                &pool,
+                &query_owned,
+                limit,
+                offset,
+                &artists_for_cache,
+            )
+            .await
         });
 
         Ok(artists)
@@ -128,7 +135,14 @@ impl MusicRepository {
         let query_owned = query.to_string();
         let releases_for_cache = releases.clone();
         spawn_cache_task("release search", move || async move {
-            SearchCacheRepository::cache_release_search(&pool, &query_owned, limit, offset, &releases_for_cache).await
+            SearchCacheRepository::cache_release_search(
+                &pool,
+                &query_owned,
+                limit,
+                offset,
+                &releases_for_cache,
+            )
+            .await
         });
 
         Ok(releases)
@@ -189,7 +203,14 @@ impl MusicRepository {
         let query_owned = query.to_string();
         let recordings_for_cache = recordings.clone();
         spawn_cache_task("recording search", move || async move {
-            SearchCacheRepository::cache_recording_search(&pool, &query_owned, limit, offset, &recordings_for_cache).await
+            SearchCacheRepository::cache_recording_search(
+                &pool,
+                &query_owned,
+                limit,
+                offset,
+                &recordings_for_cache,
+            )
+            .await
         });
 
         Ok(recordings)
@@ -250,7 +271,14 @@ impl MusicRepository {
         let query_owned = query.to_string();
         let release_groups_for_cache = release_groups.clone();
         spawn_cache_task("release group search", move || async move {
-            SearchCacheRepository::cache_release_group_search(&pool, &query_owned, limit, offset, &release_groups_for_cache).await
+            SearchCacheRepository::cache_release_group_search(
+                &pool,
+                &query_owned,
+                limit,
+                offset,
+                &release_groups_for_cache,
+            )
+            .await
         });
 
         Ok(release_groups)

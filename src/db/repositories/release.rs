@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::db::models::{NewReleaseGroupRow, NewReleaseRow, ReleaseGroupRow, ReleaseRow};
 use crate::db::schema::{release_groups, releases};
-use crate::db::{db_error, get_conn, parse_uuid, validate_batch_size, DbPool};
+use crate::db::{DbPool, db_error, get_conn, parse_uuid, validate_batch_size};
 use crate::error::{AppError, Result};
 use crate::musicbrainz::Release;
 
@@ -186,11 +186,27 @@ impl ReleaseRepository {
                 .on_conflict(release_groups::id)
                 .do_update()
                 .set((
-                    release_groups::title.eq(diesel::dsl::sql::<diesel::sql_types::Text>("excluded.title")),
-                    release_groups::primary_type.eq(diesel::dsl::sql::<diesel::sql_types::Nullable<diesel::sql_types::Text>>("excluded.primary_type")),
-                    release_groups::secondary_types.eq(diesel::dsl::sql::<diesel::sql_types::Nullable<diesel::sql_types::Jsonb>>("excluded.secondary_types")),
-                    release_groups::first_release_date.eq(diesel::dsl::sql::<diesel::sql_types::Nullable<diesel::sql_types::Text>>("excluded.first_release_date")),
-                    release_groups::disambiguation.eq(diesel::dsl::sql::<diesel::sql_types::Nullable<diesel::sql_types::Text>>("excluded.disambiguation")),
+                    release_groups::title.eq(diesel::dsl::sql::<diesel::sql_types::Text>(
+                        "excluded.title",
+                    )),
+                    release_groups::primary_type.eq(diesel::dsl::sql::<
+                        diesel::sql_types::Nullable<diesel::sql_types::Text>,
+                    >("excluded.primary_type")),
+                    release_groups::secondary_types.eq(diesel::dsl::sql::<
+                        diesel::sql_types::Nullable<diesel::sql_types::Jsonb>,
+                    >(
+                        "excluded.secondary_types"
+                    )),
+                    release_groups::first_release_date.eq(diesel::dsl::sql::<
+                        diesel::sql_types::Nullable<diesel::sql_types::Text>,
+                    >(
+                        "excluded.first_release_date"
+                    )),
+                    release_groups::disambiguation.eq(diesel::dsl::sql::<
+                        diesel::sql_types::Nullable<diesel::sql_types::Text>,
+                    >(
+                        "excluded.disambiguation"
+                    )),
                     release_groups::updated_at.eq(Utc::now()),
                     release_groups::cached_at.eq(Utc::now()),
                 ))
@@ -218,13 +234,27 @@ impl ReleaseRepository {
             .on_conflict(releases::id)
             .do_update()
             .set((
-                releases::title.eq(diesel::dsl::sql::<diesel::sql_types::Text>("excluded.title")),
-                releases::status.eq(diesel::dsl::sql::<diesel::sql_types::Nullable<diesel::sql_types::Text>>("excluded.status")),
-                releases::release_date.eq(diesel::dsl::sql::<diesel::sql_types::Nullable<diesel::sql_types::Text>>("excluded.release_date")),
-                releases::country.eq(diesel::dsl::sql::<diesel::sql_types::Nullable<diesel::sql_types::Text>>("excluded.country")),
-                releases::barcode.eq(diesel::dsl::sql::<diesel::sql_types::Nullable<diesel::sql_types::Text>>("excluded.barcode")),
-                releases::disambiguation.eq(diesel::dsl::sql::<diesel::sql_types::Nullable<diesel::sql_types::Text>>("excluded.disambiguation")),
-                releases::release_group_id.eq(diesel::dsl::sql::<diesel::sql_types::Nullable<diesel::sql_types::Uuid>>("excluded.release_group_id")),
+                releases::title.eq(diesel::dsl::sql::<diesel::sql_types::Text>(
+                    "excluded.title",
+                )),
+                releases::status.eq(diesel::dsl::sql::<
+                    diesel::sql_types::Nullable<diesel::sql_types::Text>,
+                >("excluded.status")),
+                releases::release_date.eq(diesel::dsl::sql::<
+                    diesel::sql_types::Nullable<diesel::sql_types::Text>,
+                >("excluded.release_date")),
+                releases::country.eq(diesel::dsl::sql::<
+                    diesel::sql_types::Nullable<diesel::sql_types::Text>,
+                >("excluded.country")),
+                releases::barcode.eq(diesel::dsl::sql::<
+                    diesel::sql_types::Nullable<diesel::sql_types::Text>,
+                >("excluded.barcode")),
+                releases::disambiguation.eq(diesel::dsl::sql::<
+                    diesel::sql_types::Nullable<diesel::sql_types::Text>,
+                >("excluded.disambiguation")),
+                releases::release_group_id.eq(diesel::dsl::sql::<
+                    diesel::sql_types::Nullable<diesel::sql_types::Uuid>,
+                >("excluded.release_group_id")),
                 releases::updated_at.eq(Utc::now()),
                 releases::cached_at.eq(Utc::now()),
             ))

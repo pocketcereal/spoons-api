@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::db::models::{NewRecordingRow, RecordingRow};
 use crate::db::schema::recordings;
-use crate::db::{db_error, get_conn, parse_uuid, validate_batch_size, DbPool};
+use crate::db::{DbPool, db_error, get_conn, parse_uuid, validate_batch_size};
 use crate::error::{AppError, Result};
 use crate::musicbrainz::Recording;
 
@@ -129,10 +129,18 @@ impl RecordingRepository {
             .on_conflict(recordings::id)
             .do_update()
             .set((
-                recordings::title.eq(diesel::dsl::sql::<diesel::sql_types::Text>("excluded.title")),
-                recordings::length_ms.eq(diesel::dsl::sql::<diesel::sql_types::Nullable<diesel::sql_types::Int8>>("excluded.length_ms")),
-                recordings::disambiguation.eq(diesel::dsl::sql::<diesel::sql_types::Nullable<diesel::sql_types::Text>>("excluded.disambiguation")),
-                recordings::video.eq(diesel::dsl::sql::<diesel::sql_types::Nullable<diesel::sql_types::Bool>>("excluded.video")),
+                recordings::title.eq(diesel::dsl::sql::<diesel::sql_types::Text>(
+                    "excluded.title",
+                )),
+                recordings::length_ms.eq(diesel::dsl::sql::<
+                    diesel::sql_types::Nullable<diesel::sql_types::Int8>,
+                >("excluded.length_ms")),
+                recordings::disambiguation.eq(diesel::dsl::sql::<
+                    diesel::sql_types::Nullable<diesel::sql_types::Text>,
+                >("excluded.disambiguation")),
+                recordings::video.eq(diesel::dsl::sql::<
+                    diesel::sql_types::Nullable<diesel::sql_types::Bool>,
+                >("excluded.video")),
                 recordings::updated_at.eq(Utc::now()),
                 recordings::cached_at.eq(Utc::now()),
             ))

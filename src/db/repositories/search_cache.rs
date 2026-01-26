@@ -17,7 +17,7 @@ use crate::db::repositories::{
 use crate::db::schema::{
     artist_search_cache, recording_search_cache, release_group_search_cache, release_search_cache,
 };
-use crate::db::{db_error, get_conn, DbPool};
+use crate::db::{DbPool, db_error, get_conn};
 use crate::error::Result;
 use crate::musicbrainz::{Artist, Recording, Release, ReleaseGroup};
 

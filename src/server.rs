@@ -103,9 +103,9 @@ pub async fn run(config: &AppConfig) -> Result<()> {
     let addr = SocketAddr::from(([0, 0, 0, 0], config.server.port));
     tracing::info!(%addr, "Starting server");
 
-    let listener = TcpListener::bind(addr).await.map_err(|e| {
-        AppError::Server(format!("Failed to bind to {}: {}", addr, e))
-    })?;
+    let listener = TcpListener::bind(addr)
+        .await
+        .map_err(|e| AppError::Server(format!("Failed to bind to {}: {}", addr, e)))?;
 
     axum::serve(listener, app)
         .await

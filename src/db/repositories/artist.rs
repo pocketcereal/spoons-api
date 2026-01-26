@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::db::models::{AreaRow, ArtistRow, NewAreaRow, NewArtistRow};
 use crate::db::schema::{areas, artists};
-use crate::db::{db_error, get_conn, parse_uuid, validate_batch_size, DbPool};
+use crate::db::{DbPool, db_error, get_conn, parse_uuid, validate_batch_size};
 use crate::error::{AppError, Result};
 use crate::musicbrainz::Artist;
 
@@ -35,9 +35,7 @@ impl ArtistRepository {
             .optional()
             .map_err(db_error("Failed to get cached artist"))?;
 
-        Ok(result.map(|(artist_row, area_row)| {
-            artist_row.into_artist(area_row.map(Into::into))
-        }))
+        Ok(result.map(|(artist_row, area_row)| artist_row.into_artist(area_row.map(Into::into))))
     }
 
     /// Get an artist by ID (regardless of cache expiry).
@@ -55,9 +53,7 @@ impl ArtistRepository {
             .optional()
             .map_err(db_error("Failed to get artist"))?;
 
-        Ok(result.map(|(artist_row, area_row)| {
-            artist_row.into_artist(area_row.map(Into::into))
-        }))
+        Ok(result.map(|(artist_row, area_row)| artist_row.into_artist(area_row.map(Into::into))))
     }
 
     /// Get multiple artists by their IDs.
@@ -96,8 +92,9 @@ impl ArtistRepository {
             .area
             .as_ref()
             .map(|area| {
-                NewAreaRow::try_from(area)
-                    .map_err(|e: uuid::Error| AppError::Database(format!("Invalid area UUID: {}", e)))
+                NewAreaRow::try_from(area).map_err(|e: uuid::Error| {
+                    AppError::Database(format!("Invalid area UUID: {}", e))
+                })
             })
             .transpose()?;
 
@@ -172,7 +169,9 @@ impl ArtistRepository {
                 .do_update()
                 .set((
                     areas::name.eq(diesel::dsl::sql::<diesel::sql_types::Text>("excluded.name")),
-                    areas::sort_name.eq(diesel::dsl::sql::<diesel::sql_types::Nullable<diesel::sql_types::Text>>("excluded.sort_name")),
+                    areas::sort_name.eq(diesel::dsl::sql::<
+                        diesel::sql_types::Nullable<diesel::sql_types::Text>,
+                    >("excluded.sort_name")),
                     areas::updated_at.eq(Utc::now()),
                 ))
                 .execute(&mut conn)
@@ -200,12 +199,24 @@ impl ArtistRepository {
             .do_update()
             .set((
                 artists::name.eq(diesel::dsl::sql::<diesel::sql_types::Text>("excluded.name")),
-                artists::sort_name.eq(diesel::dsl::sql::<diesel::sql_types::Nullable<diesel::sql_types::Text>>("excluded.sort_name")),
-                artists::artist_type.eq(diesel::dsl::sql::<diesel::sql_types::Nullable<diesel::sql_types::Text>>("excluded.artist_type")),
-                artists::country.eq(diesel::dsl::sql::<diesel::sql_types::Nullable<diesel::sql_types::Text>>("excluded.country")),
-                artists::area_id.eq(diesel::dsl::sql::<diesel::sql_types::Nullable<diesel::sql_types::Uuid>>("excluded.area_id")),
-                artists::disambiguation.eq(diesel::dsl::sql::<diesel::sql_types::Nullable<diesel::sql_types::Text>>("excluded.disambiguation")),
-                artists::life_span.eq(diesel::dsl::sql::<diesel::sql_types::Nullable<diesel::sql_types::Jsonb>>("excluded.life_span")),
+                artists::sort_name.eq(diesel::dsl::sql::<
+                    diesel::sql_types::Nullable<diesel::sql_types::Text>,
+                >("excluded.sort_name")),
+                artists::artist_type.eq(diesel::dsl::sql::<
+                    diesel::sql_types::Nullable<diesel::sql_types::Text>,
+                >("excluded.artist_type")),
+                artists::country.eq(diesel::dsl::sql::<
+                    diesel::sql_types::Nullable<diesel::sql_types::Text>,
+                >("excluded.country")),
+                artists::area_id.eq(diesel::dsl::sql::<
+                    diesel::sql_types::Nullable<diesel::sql_types::Uuid>,
+                >("excluded.area_id")),
+                artists::disambiguation.eq(diesel::dsl::sql::<
+                    diesel::sql_types::Nullable<diesel::sql_types::Text>,
+                >("excluded.disambiguation")),
+                artists::life_span.eq(diesel::dsl::sql::<
+                    diesel::sql_types::Nullable<diesel::sql_types::Jsonb>,
+                >("excluded.life_span")),
                 artists::updated_at.eq(Utc::now()),
                 artists::cached_at.eq(Utc::now()),
             ))

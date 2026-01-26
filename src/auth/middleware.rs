@@ -4,7 +4,10 @@ use axum::{
     Json,
     body::Body,
     extract::Request,
-    http::{StatusCode, HeaderValue, header::{AUTHORIZATION, WWW_AUTHENTICATE}},
+    http::{
+        HeaderValue, StatusCode,
+        header::{AUTHORIZATION, WWW_AUTHENTICATE},
+    },
     response::{IntoResponse, Response},
 };
 use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, jwk::JwkSet};
@@ -85,7 +88,10 @@ impl JwksCache {
             .map_err(|e| format!("Failed to fetch JWKS: {}", e))?;
 
         if !response.status().is_success() {
-            return Err(format!("JWKS fetch failed with status: {}", response.status()));
+            return Err(format!(
+                "JWKS fetch failed with status: {}",
+                response.status()
+            ));
         }
 
         let jwks: JwkSet = response
@@ -164,7 +170,10 @@ impl AuthConfig {
             .map_err(|e| format!("Failed to fetch JWKS: {}", e))?;
 
         if !response.status().is_success() {
-            return Err(format!("JWKS fetch failed with status: {}", response.status()));
+            return Err(format!(
+                "JWKS fetch failed with status: {}",
+                response.status()
+            ));
         }
 
         let jwks: JwkSet = response
@@ -195,10 +204,9 @@ fn unauthorized_response(message: &str) -> Response {
     )
         .into_response();
 
-    response.headers_mut().insert(
-        WWW_AUTHENTICATE,
-        HeaderValue::from_static("Bearer"),
-    );
+    response
+        .headers_mut()
+        .insert(WWW_AUTHENTICATE, HeaderValue::from_static("Bearer"));
 
     response
 }
@@ -251,8 +259,8 @@ fn validate_jwt_with_jwks(token: &str, jwks: &JwkSet) -> Result<Claims, JwtError
 
     let jwk = jwks.find(&kid).ok_or(JwtError::KidNotFound(kid))?;
 
-    let decoding_key = DecodingKey::from_jwk(jwk)
-        .map_err(|e| JwtError::Other(format!("Invalid JWK: {}", e)))?;
+    let decoding_key =
+        DecodingKey::from_jwk(jwk).map_err(|e| JwtError::Other(format!("Invalid JWK: {}", e)))?;
 
     let mut validation = Validation::new(Algorithm::RS256);
     validation.set_required_spec_claims(&["sub", "exp"]);
@@ -398,7 +406,9 @@ where
             };
 
             if is_dev_token_match(token, &config) {
-                tracing::warn!("Dev token authentication used - ensure this is disabled in production");
+                tracing::warn!(
+                    "Dev token authentication used - ensure this is disabled in production"
+                );
                 return inner.call(req).await;
             }
 

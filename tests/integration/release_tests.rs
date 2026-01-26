@@ -54,7 +54,10 @@ async fn test_release_cache_expiry() {
         .await
         .expect("Failed to get cached release");
 
-    assert!(cached.is_none(), "Cache should be expired with negative TTL");
+    assert!(
+        cached.is_none(),
+        "Cache should be expired with negative TTL"
+    );
 }
 
 #[tokio::test]

@@ -25,9 +25,17 @@ use crate::domain::DataSource;
 #[graphql(
     field(name = "id", ty = "String", desc = "Unique identifier (internal)"),
     field(name = "name", ty = "String", desc = "Artist/user display name"),
-    field(name = "source", ty = "DataSource", desc = "Data source this record came from"),
+    field(
+        name = "source",
+        ty = "DataSource",
+        desc = "Data source this record came from"
+    ),
     field(name = "source_id", ty = "String", desc = "ID in the source system"),
-    field(name = "image_url", ty = "Option<String>", desc = "Profile/artist image URL"),
+    field(
+        name = "image_url",
+        ty = "Option<String>",
+        desc = "Profile/artist image URL"
+    )
 )]
 pub enum Artist {
     MusicBrainz(MusicBrainzArtist),
@@ -257,10 +265,22 @@ impl AudiusArtist {
 #[graphql(
     field(name = "id", ty = "String", desc = "Unique identifier (internal)"),
     field(name = "title", ty = "String", desc = "Track title"),
-    field(name = "source", ty = "DataSource", desc = "Data source this record came from"),
+    field(
+        name = "source",
+        ty = "DataSource",
+        desc = "Data source this record came from"
+    ),
     field(name = "source_id", ty = "String", desc = "ID in the source system"),
-    field(name = "duration_ms", ty = "Option<i64>", desc = "Duration in milliseconds"),
-    field(name = "artist_name", ty = "Option<String>", desc = "Primary artist name"),
+    field(
+        name = "duration_ms",
+        ty = "Option<i64>",
+        desc = "Duration in milliseconds"
+    ),
+    field(
+        name = "artist_name",
+        ty = "Option<String>",
+        desc = "Primary artist name"
+    )
 )]
 pub enum Track {
     MusicBrainz(MusicBrainzTrack),
