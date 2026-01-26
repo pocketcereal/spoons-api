@@ -30,3 +30,7 @@
 - Cache-first pattern: check PostgreSQL cache before external API calls
 - Fire-and-forget cache updates with error logging
 - GraphQL interfaces for multi-source data aggregation
+
+# Future Improvements
+- Repository trait abstraction to reduce duplication in src/db/repositories/
+- Search cache generic trait (depends on repository refactor)
