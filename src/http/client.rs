@@ -1,37 +1,62 @@
-//! API client wrapper with common functionality.
-
-#![allow(dead_code)]
+//! API client wrapper with connection pooling and retry logic.
+//!
+//! The underlying `reqwest::Client` maintains an internal connection pool
+//! that reuses connections across requests. This struct should be cloned
+//! and shared across the application rather than recreated per request.
 
 use reqwest::{Client, Response, StatusCode};
 use serde::de::DeserializeOwned;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crate::error::{AppError, Result};
 
+/// Default retry configuration: 3 retries with exponential backoff.
+const DEFAULT_MAX_RETRIES: u32 = 3;
+/// Initial retry delay of 100ms.
+const DEFAULT_INITIAL_RETRY_DELAY_MS: u64 = 100;
+
 /// Authentication method for API requests.
+///
+/// Currently only `None` is used. Additional variants (Bearer, ApiKey, Basic)
+/// can be added when needed for new API integrations.
 #[derive(Debug, Clone)]
 pub enum AuthMethod {
-    /// Bearer token authentication.
-    Bearer(String),
-    /// API key in header.
-    ApiKey { header: String, key: String },
-    /// Basic authentication.
-    Basic { username: String, password: String },
-    /// No authentication.
+    /// No authentication required.
     None,
 }
 
-/// API client for making HTTP requests with shared configuration.
+/// Retry configuration for HTTP requests.
+#[derive(Debug, Clone)]
+pub struct RetryConfig {
+    /// Maximum number of retry attempts (not including initial request).
+    pub max_retries: u32,
+    /// Initial delay before first retry (doubles on each subsequent retry).
+    pub initial_delay: Duration,
+}
+
+impl Default for RetryConfig {
+    fn default() -> Self {
+        Self {
+            max_retries: DEFAULT_MAX_RETRIES,
+            initial_delay: Duration::from_millis(DEFAULT_INITIAL_RETRY_DELAY_MS),
+        }
+    }
+}
+
+/// API client wrapper with connection pooling and automatic retry.
+///
+/// The underlying `reqwest::Client` maintains an internal connection pool
+/// that reuses connections across requests. This struct should be cloned
+/// and shared across the application rather than recreated per request.
 #[derive(Debug, Clone)]
 pub struct ApiClient {
     client: Client,
     base_url: String,
     auth: AuthMethod,
-    user_agent: String,
+    retry_config: RetryConfig,
 }
 
 impl ApiClient {
-    /// Create a new API client.
     pub fn new(base_url: impl Into<String>, auth: AuthMethod, timeout: Duration) -> Result<Self> {
         let user_agent = format!("spoons-api/{}", env!("CARGO_PKG_VERSION"));
 
@@ -45,126 +70,131 @@ impl ApiClient {
             client,
             base_url: base_url.into(),
             auth,
-            user_agent,
+            retry_config: RetryConfig::default(),
         })
     }
 
-    /// Build a full URL from a path.
     fn build_url(&self, path: &str) -> String {
         let base = self.base_url.trim_end_matches('/');
         let path = path.trim_start_matches('/');
         format!("{}/{}", base, path)
     }
 
-    /// Add authentication to a request builder.
     fn add_auth(&self, builder: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
         match &self.auth {
-            AuthMethod::Bearer(token) => builder.bearer_auth(token),
-            AuthMethod::ApiKey { header, key } => builder.header(header.as_str(), key.as_str()),
-            AuthMethod::Basic { username, password } => {
-                builder.basic_auth(username, Some(password))
-            }
             AuthMethod::None => builder,
         }
     }
 
-    /// Make a GET request.
-    pub async fn get<T: DeserializeOwned>(&self, path: &str) -> Result<T> {
-        let url = self.build_url(path);
-        tracing::debug!(url = %url, "Making GET request");
-
-        let builder = self.client.get(&url);
-        let builder = self.add_auth(builder);
-
-        let response = builder
-            .send()
-            .await
-            .map_err(|e| AppError::Internal(e.into()))?;
-
-        self.handle_response(response).await
+    /// Determine if an error is retryable (timeouts and connection errors only).
+    /// Note: is_request() is intentionally excluded as it includes client errors (4xx)
+    /// that should not be retried.
+    fn is_retryable_error(err: &reqwest::Error) -> bool {
+        err.is_timeout() || err.is_connect()
     }
 
-    /// Make a GET request with query parameters.
+    /// Determine if a status code is retryable (5xx server errors).
+    fn is_retryable_status(status: StatusCode) -> bool {
+        status.is_server_error()
+    }
+
+    /// Calculate delay for a retry attempt using exponential backoff.
+    fn retry_delay(&self, attempt: u32) -> Duration {
+        self.retry_config.initial_delay * 2u32.saturating_pow(attempt)
+    }
+
+    pub async fn get<T: DeserializeOwned>(&self, path: &str) -> Result<T> {
+        self.get_internal(path, None::<&()>).await
+    }
+
     pub async fn get_with_query<T: DeserializeOwned, Q: serde::Serialize>(
         &self,
         path: &str,
         query: &Q,
     ) -> Result<T> {
-        let url = self.build_url(path);
-        tracing::debug!(url = %url, "Making GET request with query");
-
-        let builder = self.client.get(&url).query(query);
-        let builder = self.add_auth(builder);
-
-        let response = builder
-            .send()
-            .await
-            .map_err(|e| AppError::Internal(e.into()))?;
-
-        self.handle_response(response).await
+        self.get_internal(path, Some(query)).await
     }
 
-    /// Make a POST request.
-    pub async fn post<T: DeserializeOwned, B: serde::Serialize>(
+    async fn get_internal<T: DeserializeOwned, Q: serde::Serialize>(
         &self,
         path: &str,
-        body: &B,
+        query: Option<&Q>,
     ) -> Result<T> {
         let url = self.build_url(path);
-        tracing::debug!(url = %url, "Making POST request");
+        let max_attempts = self.retry_config.max_retries + 1;
+        let mut last_error: Option<AppError> = None;
 
-        let builder = self.client.post(&url).json(body);
-        let builder = self.add_auth(builder);
+        for attempt in 0..max_attempts {
+            let start = Instant::now();
 
-        let response = builder
-            .send()
-            .await
-            .map_err(|e| AppError::Internal(e.into()))?;
+            let mut builder = self.client.get(&url);
+            if let Some(q) = query {
+                builder = builder.query(q);
+            }
+            builder = self.add_auth(builder);
 
-        self.handle_response(response).await
-    }
+            let result = builder.send().await;
 
-    /// Make a PUT request.
-    pub async fn put<T: DeserializeOwned, B: serde::Serialize>(
-        &self,
-        path: &str,
-        body: &B,
-    ) -> Result<T> {
-        let url = self.build_url(path);
-        tracing::debug!(url = %url, "Making PUT request");
+            match result {
+                Ok(response) => {
+                    let elapsed = start.elapsed();
+                    let status = response.status();
+                    tracing::debug!(
+                        url = %url,
+                        status = %status.as_u16(),
+                        elapsed_ms = %elapsed.as_millis(),
+                        attempt = attempt + 1,
+                        "External API request completed"
+                    );
 
-        let builder = self.client.put(&url).json(body);
-        let builder = self.add_auth(builder);
+                    if Self::is_retryable_status(status) && attempt < self.retry_config.max_retries {
+                        let delay = self.retry_delay(attempt);
+                        tracing::warn!(
+                            url = %url,
+                            status = %status.as_u16(),
+                            attempt = attempt + 1,
+                            delay_ms = %delay.as_millis(),
+                            "Retrying request after server error"
+                        );
+                        tokio::time::sleep(delay).await;
+                        last_error = Some(self.handle_error(response).await);
+                        continue;
+                    }
 
-        let response = builder
-            .send()
-            .await
-            .map_err(|e| AppError::Internal(e.into()))?;
+                    return self.handle_response(response).await;
+                }
+                Err(e) => {
+                    let elapsed = start.elapsed();
 
-        self.handle_response(response).await
-    }
+                    if Self::is_retryable_error(&e) && attempt < self.retry_config.max_retries {
+                        let delay = self.retry_delay(attempt);
+                        tracing::warn!(
+                            url = %url,
+                            error = %e,
+                            attempt = attempt + 1,
+                            delay_ms = %delay.as_millis(),
+                            elapsed_ms = %elapsed.as_millis(),
+                            "Retrying request after error"
+                        );
+                        tokio::time::sleep(delay).await;
+                        last_error = Some(AppError::Internal(e.into()));
+                        continue;
+                    }
 
-    /// Make a DELETE request.
-    pub async fn delete(&self, path: &str) -> Result<()> {
-        let url = self.build_url(path);
-        tracing::debug!(url = %url, "Making DELETE request");
-
-        let builder = self.client.delete(&url);
-        let builder = self.add_auth(builder);
-
-        let response = builder
-            .send()
-            .await
-            .map_err(|e| AppError::Internal(e.into()))?;
-
-        if response.status().is_success() {
-            Ok(())
-        } else {
-            Err(self.handle_error(response).await)
+                    tracing::error!(
+                        url = %url,
+                        error = %e,
+                        elapsed_ms = %elapsed.as_millis(),
+                        "External API request failed (no more retries)"
+                    );
+                    return Err(AppError::Internal(e.into()));
+                }
+            }
         }
+
+        Err(last_error.unwrap_or_else(|| AppError::Server("Request failed after retries".to_string())))
     }
 
-    /// Handle a successful response.
     async fn handle_response<T: DeserializeOwned>(&self, response: Response) -> Result<T> {
         let status = response.status();
 
@@ -178,19 +208,33 @@ impl ApiClient {
         }
     }
 
-    /// Handle an error response.
     async fn handle_error(&self, response: Response) -> AppError {
         let status = response.status();
-        let body = response.text().await.unwrap_or_default();
+        let body = response
+            .text()
+            .await
+            .unwrap_or_else(|e| format!("[failed to read response body: {}]", e));
 
         tracing::warn!(status = %status, body = %body, "API request failed");
 
         match status {
-            StatusCode::UNAUTHORIZED => AppError::Server("Unauthorized".to_string()),
-            StatusCode::FORBIDDEN => AppError::Server("Forbidden".to_string()),
-            StatusCode::NOT_FOUND => AppError::Server("Not found".to_string()),
-            StatusCode::TOO_MANY_REQUESTS => AppError::Server("Rate limited".to_string()),
-            _ => AppError::Server(format!("Request failed with status {}: {}", status, body)),
+            StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN => {
+                AppError::Unauthorized("Upstream authentication failed".to_string())
+            }
+            StatusCode::NOT_FOUND => AppError::NotFound("Resource not found".to_string()),
+            StatusCode::TOO_MANY_REQUESTS => AppError::RateLimited,
+            s if s.is_server_error() => {
+                let truncated_body = if body.chars().count() > 200 {
+                    format!("{}...", body.chars().take(200).collect::<String>())
+                } else {
+                    body
+                };
+                AppError::Server(format!(
+                    "Upstream request failed with status {}: {}",
+                    status, truncated_body
+                ))
+            }
+            _ => AppError::Server(format!("Upstream request failed with status {}", status)),
         }
     }
 }
@@ -206,7 +250,7 @@ mod tests {
             AuthMethod::None,
             Duration::from_secs(30),
         )
-        .unwrap();
+        .expect("Failed to create API client");
 
         assert_eq!(client.build_url("/users"), "https://api.example.com/users");
         assert_eq!(client.build_url("users"), "https://api.example.com/users");
@@ -219,7 +263,7 @@ mod tests {
             AuthMethod::None,
             Duration::from_secs(30),
         )
-        .unwrap();
+        .expect("Failed to create API client");
 
         assert_eq!(client.build_url("/users"), "https://api.example.com/users");
     }

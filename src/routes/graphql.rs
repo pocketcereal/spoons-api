@@ -11,22 +11,22 @@ use axum::{
 
 use crate::graphql::AppSchema;
 
-/// GraphQL query handler.
 async fn graphql_handler(State(schema): State<AppSchema>, req: GraphQLRequest) -> GraphQLResponse {
     schema.execute(req.into_inner()).await.into()
 }
 
-/// GraphiQL playground handler.
 async fn graphiql_handler() -> impl IntoResponse {
     Html(GraphiQLSource::build().endpoint("/graphql").finish())
 }
 
-/// Build the GraphQL routes.
-pub fn routes(schema: AppSchema) -> Router {
+pub fn graphql_route(schema: AppSchema) -> Router {
     Router::new()
-        .route("/graphql", post(graphql_handler))
-        .route("/graphiql", get(graphiql_handler))
+        .route("/graphql", post(graphql_handler).get(graphql_handler))
         .with_state(schema)
+}
+
+pub fn graphiql_route() -> Router {
+    Router::new().route("/graphiql", get(graphiql_handler))
 }
 
 #[cfg(test)]
@@ -38,9 +38,9 @@ mod tests {
 
     #[test]
     fn test_routes_build() {
-        let client = MusicBrainzClient::new("https://musicbrainz.org/ws/2").unwrap();
+        let client = MusicBrainzClient::new("https://musicbrainz.org/ws/2")
+            .expect("Failed to create MusicBrainz client");
 
-        // Skip test if no DATABASE_URL - this is expected in CI without DB
         let db_url = match std::env::var("DATABASE_URL") {
             Ok(url) => url,
             Err(_) => return,
@@ -51,15 +51,16 @@ mod tests {
             max_connections: 1,
         };
 
-        let pool = create_pool(&db_config).unwrap();
+        let pool = create_pool(&db_config).expect("Failed to create database pool");
 
         let app_context = AppContext {
             db_pool: pool,
             musicbrainz_client: client,
+            audius_client: None,
             cache_ttl_seconds: 3600,
         };
 
         let schema = build_schema(app_context);
-        let _ = routes(schema);
+        let _ = graphql_route(schema);
     }
 }

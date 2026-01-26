@@ -47,15 +47,15 @@ hex = "0.4"
 # UUID
 uuid = { version = "1", features = ["v4", "serde"] }
 
-# Redis
-redis = { version = "0.27", features = ["tokio-comp", "connection-manager"] }
-
 # GraphQL
 async-graphql = "7"
 async-graphql-axum = "7"
 
 # Async utilities
 futures = "0.3"
+
+# Random number generation
+rand = "0.8"
 
 [dev-dependencies]
 axum-test = "18"

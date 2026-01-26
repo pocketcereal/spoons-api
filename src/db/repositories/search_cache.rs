@@ -17,8 +17,8 @@ use crate::db::repositories::{
 use crate::db::schema::{
     artist_search_cache, recording_search_cache, release_group_search_cache, release_search_cache,
 };
-use crate::db::DbPool;
-use crate::error::{AppError, Result};
+use crate::db::{db_error, get_conn, DbPool};
+use crate::error::Result;
 use crate::musicbrainz::{Artist, Recording, Release, ReleaseGroup};
 
 /// Generate a hash for a search query with pagination.
@@ -46,8 +46,7 @@ impl SearchCacheRepository {
     ) -> Result<Option<Vec<Artist>>> {
         let query_hash = hash_query(query, limit, offset);
         let min_cached_at = Utc::now() - Duration::seconds(cache_ttl_seconds);
-
-        let mut conn = pool.get().await.map_err(|e| AppError::Database(e.to_string()))?;
+        let mut conn = get_conn(pool).await?;
 
         let cache_row: Option<ArtistSearchCacheRow> = artist_search_cache::table
             .filter(artist_search_cache::query_hash.eq(&query_hash))
@@ -56,7 +55,7 @@ impl SearchCacheRepository {
             .first(&mut conn)
             .await
             .optional()
-            .map_err(|e| AppError::Database(e.to_string()))?;
+            .map_err(db_error("Failed to get artist search cache"))?;
 
         match cache_row {
             Some(row) => {
@@ -72,6 +71,8 @@ impl SearchCacheRepository {
     pub async fn cache_artist_search(
         pool: &DbPool,
         query: &str,
+        limit: i32,
+        offset: i32,
         artists: &[Artist],
     ) -> Result<()> {
         // First upsert all artists
@@ -83,8 +84,7 @@ impl SearchCacheRepository {
             .filter_map(|a| Uuid::parse_str(&a.id).ok())
             .collect();
 
-        // We store with default limit/offset for simplicity
-        let query_hash = hash_query(query, 25, 0);
+        let query_hash = hash_query(query, limit, offset);
 
         let new_cache = NewArtistSearchCacheRow {
             query_hash: query_hash.clone(),
@@ -93,7 +93,7 @@ impl SearchCacheRepository {
             total_count: artists.len() as i64,
         };
 
-        let mut conn = pool.get().await.map_err(|e| AppError::Database(e.to_string()))?;
+        let mut conn = get_conn(pool).await?;
 
         diesel::insert_into(artist_search_cache::table)
             .values(&new_cache)
@@ -106,7 +106,7 @@ impl SearchCacheRepository {
             ))
             .execute(&mut conn)
             .await
-            .map_err(|e| AppError::Database(e.to_string()))?;
+            .map_err(db_error("Failed to cache artist search"))?;
 
         Ok(())
     }
@@ -123,8 +123,7 @@ impl SearchCacheRepository {
     ) -> Result<Option<Vec<Release>>> {
         let query_hash = hash_query(query, limit, offset);
         let min_cached_at = Utc::now() - Duration::seconds(cache_ttl_seconds);
-
-        let mut conn = pool.get().await.map_err(|e| AppError::Database(e.to_string()))?;
+        let mut conn = get_conn(pool).await?;
 
         let cache_row: Option<ReleaseSearchCacheRow> = release_search_cache::table
             .filter(release_search_cache::query_hash.eq(&query_hash))
@@ -133,7 +132,7 @@ impl SearchCacheRepository {
             .first(&mut conn)
             .await
             .optional()
-            .map_err(|e| AppError::Database(e.to_string()))?;
+            .map_err(db_error("Failed to get release search cache"))?;
 
         match cache_row {
             Some(row) => {
@@ -149,6 +148,8 @@ impl SearchCacheRepository {
     pub async fn cache_release_search(
         pool: &DbPool,
         query: &str,
+        limit: i32,
+        offset: i32,
         releases: &[Release],
     ) -> Result<()> {
         ReleaseRepository::upsert_many(pool, releases).await?;
@@ -158,7 +159,7 @@ impl SearchCacheRepository {
             .filter_map(|r| Uuid::parse_str(&r.id).ok())
             .collect();
 
-        let query_hash = hash_query(query, 25, 0);
+        let query_hash = hash_query(query, limit, offset);
 
         let new_cache = NewReleaseSearchCacheRow {
             query_hash: query_hash.clone(),
@@ -167,7 +168,7 @@ impl SearchCacheRepository {
             total_count: releases.len() as i64,
         };
 
-        let mut conn = pool.get().await.map_err(|e| AppError::Database(e.to_string()))?;
+        let mut conn = get_conn(pool).await?;
 
         diesel::insert_into(release_search_cache::table)
             .values(&new_cache)
@@ -180,7 +181,7 @@ impl SearchCacheRepository {
             ))
             .execute(&mut conn)
             .await
-            .map_err(|e| AppError::Database(e.to_string()))?;
+            .map_err(db_error("Failed to cache release search"))?;
 
         Ok(())
     }
@@ -197,8 +198,7 @@ impl SearchCacheRepository {
     ) -> Result<Option<Vec<Recording>>> {
         let query_hash = hash_query(query, limit, offset);
         let min_cached_at = Utc::now() - Duration::seconds(cache_ttl_seconds);
-
-        let mut conn = pool.get().await.map_err(|e| AppError::Database(e.to_string()))?;
+        let mut conn = get_conn(pool).await?;
 
         let cache_row: Option<RecordingSearchCacheRow> = recording_search_cache::table
             .filter(recording_search_cache::query_hash.eq(&query_hash))
@@ -207,7 +207,7 @@ impl SearchCacheRepository {
             .first(&mut conn)
             .await
             .optional()
-            .map_err(|e| AppError::Database(e.to_string()))?;
+            .map_err(db_error("Failed to get recording search cache"))?;
 
         match cache_row {
             Some(row) => {
@@ -223,6 +223,8 @@ impl SearchCacheRepository {
     pub async fn cache_recording_search(
         pool: &DbPool,
         query: &str,
+        limit: i32,
+        offset: i32,
         recordings: &[Recording],
     ) -> Result<()> {
         RecordingRepository::upsert_many(pool, recordings).await?;
@@ -232,7 +234,7 @@ impl SearchCacheRepository {
             .filter_map(|r| Uuid::parse_str(&r.id).ok())
             .collect();
 
-        let query_hash = hash_query(query, 25, 0);
+        let query_hash = hash_query(query, limit, offset);
 
         let new_cache = NewRecordingSearchCacheRow {
             query_hash: query_hash.clone(),
@@ -241,7 +243,7 @@ impl SearchCacheRepository {
             total_count: recordings.len() as i64,
         };
 
-        let mut conn = pool.get().await.map_err(|e| AppError::Database(e.to_string()))?;
+        let mut conn = get_conn(pool).await?;
 
         diesel::insert_into(recording_search_cache::table)
             .values(&new_cache)
@@ -254,7 +256,7 @@ impl SearchCacheRepository {
             ))
             .execute(&mut conn)
             .await
-            .map_err(|e| AppError::Database(e.to_string()))?;
+            .map_err(db_error("Failed to cache recording search"))?;
 
         Ok(())
     }
@@ -271,8 +273,7 @@ impl SearchCacheRepository {
     ) -> Result<Option<Vec<ReleaseGroup>>> {
         let query_hash = hash_query(query, limit, offset);
         let min_cached_at = Utc::now() - Duration::seconds(cache_ttl_seconds);
-
-        let mut conn = pool.get().await.map_err(|e| AppError::Database(e.to_string()))?;
+        let mut conn = get_conn(pool).await?;
 
         let cache_row: Option<ReleaseGroupSearchCacheRow> = release_group_search_cache::table
             .filter(release_group_search_cache::query_hash.eq(&query_hash))
@@ -281,7 +282,7 @@ impl SearchCacheRepository {
             .first(&mut conn)
             .await
             .optional()
-            .map_err(|e| AppError::Database(e.to_string()))?;
+            .map_err(db_error("Failed to get release group search cache"))?;
 
         match cache_row {
             Some(row) => {
@@ -299,6 +300,8 @@ impl SearchCacheRepository {
     pub async fn cache_release_group_search(
         pool: &DbPool,
         query: &str,
+        limit: i32,
+        offset: i32,
         release_groups: &[ReleaseGroup],
     ) -> Result<()> {
         ReleaseGroupRepository::upsert_many(pool, release_groups).await?;
@@ -308,7 +311,7 @@ impl SearchCacheRepository {
             .filter_map(|rg| Uuid::parse_str(&rg.id).ok())
             .collect();
 
-        let query_hash = hash_query(query, 25, 0);
+        let query_hash = hash_query(query, limit, offset);
 
         let new_cache = NewReleaseGroupSearchCacheRow {
             query_hash: query_hash.clone(),
@@ -317,7 +320,7 @@ impl SearchCacheRepository {
             total_count: release_groups.len() as i64,
         };
 
-        let mut conn = pool.get().await.map_err(|e| AppError::Database(e.to_string()))?;
+        let mut conn = get_conn(pool).await?;
 
         diesel::insert_into(release_group_search_cache::table)
             .values(&new_cache)
@@ -330,7 +333,7 @@ impl SearchCacheRepository {
             ))
             .execute(&mut conn)
             .await
-            .map_err(|e| AppError::Database(e.to_string()))?;
+            .map_err(db_error("Failed to cache release group search"))?;
 
         Ok(())
     }
