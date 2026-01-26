@@ -1,7 +1,11 @@
 server:
   port: 4000
 logging:
-  level: info
-  format: json
-musicbrainz:
-  url: https://musicbrainz.org/ws/2/
+  level: debug
+  format: text
+audius:
+  app_name: spoons-api
+  enabled: true
+database:
+  max_connections: 10
+  cache_ttl_seconds: 86400

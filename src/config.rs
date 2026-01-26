@@ -55,22 +55,30 @@ impl Default for LoggingConfig {
     }
 }
 
-/// MusicBrainz API configuration.
+/// Audius API configuration.
 #[derive(Debug, Clone, Deserialize)]
-#[allow(dead_code)]
-pub struct MusicBrainzConfig {
-    #[serde(default = "default_musicbrainz_url")]
-    pub url: String,
+pub struct AudiusConfig {
+    /// Application name sent with requests.
+    #[serde(default = "default_audius_app_name")]
+    pub app_name: String,
+    /// Whether to enable Audius integration.
+    #[serde(default = "default_audius_enabled")]
+    pub enabled: bool,
 }
 
-fn default_musicbrainz_url() -> String {
-    "https://musicbrainz.org/ws/2/".to_string()
+fn default_audius_app_name() -> String {
+    "spoons-api".to_string()
 }
 
-impl Default for MusicBrainzConfig {
+const fn default_audius_enabled() -> bool {
+    true
+}
+
+impl Default for AudiusConfig {
     fn default() -> Self {
         Self {
-            url: default_musicbrainz_url(),
+            app_name: default_audius_app_name(),
+            enabled: default_audius_enabled(),
         }
     }
 }
@@ -115,8 +123,7 @@ pub struct AppConfig {
     #[serde(default)]
     pub logging: LoggingConfig,
     #[serde(default)]
-    #[allow(dead_code)] // Reserved for future use
-    pub musicbrainz: MusicBrainzConfig,
+    pub audius: AudiusConfig,
     #[serde(default)]
     pub database: DatabaseConfig,
 }

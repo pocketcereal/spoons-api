@@ -4,29 +4,115 @@ use axum::{
     Json,
     body::Body,
     extract::Request,
-    http::{StatusCode, header::AUTHORIZATION},
+    http::{StatusCode, HeaderValue, header::{AUTHORIZATION, WWW_AUTHENTICATE}},
     response::{IntoResponse, Response},
 };
-use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode};
+use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, jwk::JwkSet};
 use serde::Serialize;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
+use tokio::sync::RwLock;
 
 use super::Claims;
 
-/// Authentication configuration.
+/// Minimum interval between JWKS refresh attempts (1 minute).
+const JWKS_REFRESH_MIN_INTERVAL: Duration = Duration::from_secs(60);
+
+/// JWKS cache with on-demand refresh support.
+#[derive(Debug)]
+pub struct JwksCache {
+    /// The cached JWKS.
+    jwks: RwLock<Option<JwkSet>>,
+    /// Last refresh timestamp for rate limiting.
+    last_refresh: RwLock<Option<Instant>>,
+    /// Supabase URL for fetching JWKS.
+    supabase_url: Option<String>,
+}
+
+impl JwksCache {
+    pub fn new(supabase_url: Option<String>) -> Self {
+        Self {
+            jwks: RwLock::new(None),
+            last_refresh: RwLock::new(None),
+            supabase_url,
+        }
+    }
+
+    /// Get the cached JWKS.
+    pub async fn get(&self) -> Option<JwkSet> {
+        self.jwks.read().await.clone()
+    }
+
+    /// Set the JWKS cache.
+    pub async fn set(&self, jwks: JwkSet) {
+        *self.jwks.write().await = Some(jwks);
+        *self.last_refresh.write().await = Some(Instant::now());
+    }
+
+    /// Check if refresh is allowed (rate limiting).
+    async fn can_refresh(&self) -> bool {
+        let last = self.last_refresh.read().await;
+        match *last {
+            Some(instant) => instant.elapsed() >= JWKS_REFRESH_MIN_INTERVAL,
+            None => true,
+        }
+    }
+
+    /// Attempt to refresh JWKS from Supabase.
+    /// Returns true if refresh was attempted, false if rate limited.
+    pub async fn try_refresh(&self) -> Result<bool, String> {
+        let Some(ref url) = self.supabase_url else {
+            return Ok(false);
+        };
+
+        if !self.can_refresh().await {
+            tracing::debug!("JWKS refresh rate limited");
+            return Ok(false);
+        }
+
+        let jwks_url = format!("{}/.well-known/jwks.json", url.trim_end_matches('/'));
+        tracing::info!(url = %jwks_url, "Refreshing JWKS from Supabase");
+
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(10))
+            .build()
+            .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+
+        let response = client
+            .get(&jwks_url)
+            .send()
+            .await
+            .map_err(|e| format!("Failed to fetch JWKS: {}", e))?;
+
+        if !response.status().is_success() {
+            return Err(format!("JWKS fetch failed with status: {}", response.status()));
+        }
+
+        let jwks: JwkSet = response
+            .json()
+            .await
+            .map_err(|e| format!("Failed to parse JWKS: {}", e))?;
+
+        tracing::info!(keys = jwks.keys.len(), "JWKS refreshed successfully");
+        self.set(jwks).await;
+        Ok(true)
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct AuthConfig {
-    /// JWT secret for HS256 validation (used when jwt_secret is set)
+    pub supabase_url: Option<String>,
+    pub jwks: Option<Arc<JwkSet>>,
     pub jwt_secret: Option<String>,
-    /// Dev token for local development bypass
     pub dev_token: Option<String>,
-    /// Whether auth is enabled
     pub enabled: bool,
 }
 
 impl Default for AuthConfig {
     fn default() -> Self {
         Self {
+            supabase_url: None,
+            jwks: None,
             jwt_secret: None,
             dev_token: None,
             enabled: true,
@@ -35,46 +121,155 @@ impl Default for AuthConfig {
 }
 
 impl AuthConfig {
-    /// Create config from environment variables.
     pub fn from_env() -> Self {
+        #[cfg(debug_assertions)]
+        let dev_token = std::env::var("SPOONS_DEV_TOKEN").ok();
+        #[cfg(not(debug_assertions))]
+        let dev_token: Option<String> = None;
+
         Self {
+            supabase_url: std::env::var("SPOONS_SUPABASE_URL").ok(),
+            jwks: None,
             jwt_secret: std::env::var("SPOONS_JWT_SECRET").ok(),
-            dev_token: std::env::var("SPOONS_DEV_TOKEN").ok(),
+            dev_token,
             enabled: std::env::var("SPOONS_AUTH_DISABLED")
                 .map(|v| v != "true" && v != "1")
                 .unwrap_or(true),
         }
     }
 
-    /// Check if dev mode is enabled.
     pub fn is_dev_mode(&self) -> bool {
         self.dev_token.is_some()
     }
+
+    /// Fetches and caches JWKS from Supabase. Call at startup before creating auth layer.
+    pub async fn fetch_jwks(&mut self) -> Result<(), String> {
+        let Some(ref url) = self.supabase_url else {
+            tracing::debug!("No Supabase URL configured, skipping JWKS fetch");
+            return Ok(());
+        };
+
+        let jwks_url = format!("{}/.well-known/jwks.json", url.trim_end_matches('/'));
+        tracing::info!(url = %jwks_url, "Fetching JWKS from Supabase");
+
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(10))
+            .build()
+            .map_err(|e| format!("Failed to create HTTP client: {}", e))?;
+
+        let response = client
+            .get(&jwks_url)
+            .send()
+            .await
+            .map_err(|e| format!("Failed to fetch JWKS: {}", e))?;
+
+        if !response.status().is_success() {
+            return Err(format!("JWKS fetch failed with status: {}", response.status()));
+        }
+
+        let jwks: JwkSet = response
+            .json()
+            .await
+            .map_err(|e| format!("Failed to parse JWKS: {}", e))?;
+
+        tracing::info!(keys = jwks.keys.len(), "JWKS fetched successfully");
+        self.jwks = Some(Arc::new(jwks));
+        Ok(())
+    }
 }
 
-/// Error response for auth failures.
 #[derive(Debug, Serialize)]
 struct AuthError {
     error: &'static str,
     message: String,
 }
 
-/// Extract Bearer token from Authorization header.
+/// Creates an unauthorized response with WWW-Authenticate header per RFC 7235.
+fn unauthorized_response(message: &str) -> Response {
+    let mut response = (
+        StatusCode::UNAUTHORIZED,
+        Json(AuthError {
+            error: "Unauthorized",
+            message: message.to_string(),
+        }),
+    )
+        .into_response();
+
+    response.headers_mut().insert(
+        WWW_AUTHENTICATE,
+        HeaderValue::from_static("Bearer"),
+    );
+
+    response
+}
+
 fn extract_bearer_token(auth_header: &str) -> Option<&str> {
     auth_header
         .strip_prefix("Bearer ")
         .or_else(|| auth_header.strip_prefix("bearer "))
 }
 
-/// Validate a JWT token and return claims.
-fn validate_jwt(token: &str, config: &AuthConfig) -> Result<Claims, String> {
-    let Some(ref secret) = config.jwt_secret else {
-        return Err("JWT secret not configured".to_string());
-    };
+/// JWT validation leeway in seconds for clock skew tolerance.
+const JWT_LEEWAY_SECONDS: u64 = 30;
 
+/// Expected JWT audience for Supabase tokens.
+const JWT_AUDIENCE: &str = "authenticated";
+
+/// JWT validation error types.
+#[derive(Debug)]
+enum JwtError {
+    /// Key ID not found in JWKS - may trigger refresh.
+    KidNotFound(String),
+    /// Other validation error - won't trigger refresh.
+    Other(String),
+}
+
+impl std::fmt::Display for JwtError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            JwtError::KidNotFound(kid) => write!(f, "Key '{}' not found in JWKS", kid),
+            JwtError::Other(msg) => write!(f, "{}", msg),
+        }
+    }
+}
+
+/// Validates JWT against JWKS.
+fn validate_jwt_with_jwks(token: &str, jwks: &JwkSet) -> Result<Claims, JwtError> {
+    let header = jsonwebtoken::decode_header(token)
+        .map_err(|e| JwtError::Other(format!("Invalid token header: {}", e)))?;
+
+    if header.alg != Algorithm::RS256 {
+        return Err(JwtError::Other(format!(
+            "Invalid token algorithm: expected RS256, got {:?}",
+            header.alg
+        )));
+    }
+
+    let kid = header
+        .kid
+        .ok_or_else(|| JwtError::Other("Token missing kid header".to_string()))?;
+
+    let jwk = jwks.find(&kid).ok_or(JwtError::KidNotFound(kid))?;
+
+    let decoding_key = DecodingKey::from_jwk(jwk)
+        .map_err(|e| JwtError::Other(format!("Invalid JWK: {}", e)))?;
+
+    let mut validation = Validation::new(Algorithm::RS256);
+    validation.set_required_spec_claims(&["sub", "exp"]);
+    validation.set_audience(&[JWT_AUDIENCE]);
+    validation.leeway = JWT_LEEWAY_SECONDS;
+
+    decode::<Claims>(token, &decoding_key, &validation)
+        .map(|data| data.claims)
+        .map_err(|e| JwtError::Other(format!("Invalid token: {}", e)))
+}
+
+/// Validates JWT with HS256 secret.
+fn validate_jwt_with_secret(token: &str, secret: &str) -> Result<Claims, String> {
     let mut validation = Validation::new(Algorithm::HS256);
     validation.set_required_spec_claims(&["sub", "exp"]);
-    validation.leeway = 60;
+    validation.set_audience(&[JWT_AUDIENCE]);
+    validation.leeway = JWT_LEEWAY_SECONDS;
 
     let decoding_key = DecodingKey::from_secret(secret.as_bytes());
 
@@ -83,25 +278,63 @@ fn validate_jwt(token: &str, config: &AuthConfig) -> Result<Claims, String> {
         .map_err(|e| format!("Invalid token: {}", e))
 }
 
-/// Check if token matches dev token for bypass.
+/// Tries RS256 with JWKS first, falls back to HS256 with JWT secret.
+fn validate_jwt(token: &str, config: &AuthConfig) -> Result<Claims, String> {
+    if let Some(ref jwks) = config.jwks {
+        return validate_jwt_with_jwks(token, jwks).map_err(|e| e.to_string());
+    }
+
+    let Some(ref secret) = config.jwt_secret else {
+        return Err("No JWKS or JWT secret configured".to_string());
+    };
+
+    validate_jwt_with_secret(token, secret)
+}
+
 fn is_dev_token_match(token: &str, config: &AuthConfig) -> bool {
     config
         .dev_token
         .as_ref()
-        .is_some_and(|dev_token| token == dev_token)
+        .is_some_and(|dev_token| constant_time_eq(token.as_bytes(), dev_token.as_bytes()))
 }
 
-/// Create the auth middleware layer.
+/// Constant-time comparison to prevent timing attacks on token validation.
+/// Uses fixed iteration count based on max length to avoid leaking length info.
+fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+    let max_len = a.len().max(b.len());
+    let mut result = (a.len() != b.len()) as u8;
+
+    for i in 0..max_len {
+        let x = a.get(i).copied().unwrap_or(0);
+        let y = b.get(i).copied().unwrap_or(0);
+        result |= x ^ y;
+    }
+
+    result == 0
+}
+
+/// Creates an auth layer with JWKS on-demand refresh support.
 pub fn auth_layer(config: AuthConfig) -> AuthLayer {
+    let jwks_cache = Arc::new(JwksCache::new(config.supabase_url.clone()));
+
+    if let Some(ref jwks) = config.jwks {
+        let cache = jwks_cache.clone();
+        let jwks = (**jwks).clone();
+        tokio::spawn(async move {
+            cache.set(jwks).await;
+        });
+    }
+
     AuthLayer {
         config: Arc::new(config),
+        jwks_cache,
     }
 }
 
-/// Auth middleware layer.
 #[derive(Clone)]
 pub struct AuthLayer {
     config: Arc<AuthConfig>,
+    jwks_cache: Arc<JwksCache>,
 }
 
 impl<S> tower::Layer<S> for AuthLayer {
@@ -111,15 +344,16 @@ impl<S> tower::Layer<S> for AuthLayer {
         AuthMiddleware {
             inner,
             config: self.config.clone(),
+            jwks_cache: self.jwks_cache.clone(),
         }
     }
 }
 
-/// Auth middleware service.
 #[derive(Clone)]
 pub struct AuthMiddleware<S> {
     inner: S,
     config: Arc<AuthConfig>,
+    jwks_cache: Arc<JwksCache>,
 }
 
 impl<S> tower::Service<Request<Body>> for AuthMiddleware<S>
@@ -140,69 +374,70 @@ where
         self.inner.poll_ready(cx)
     }
 
-    fn call(&mut self, req: Request<Body>) -> Self::Future {
+    fn call(&mut self, mut req: Request<Body>) -> Self::Future {
         let config = self.config.clone();
+        let jwks_cache = self.jwks_cache.clone();
         let mut inner = self.inner.clone();
 
         Box::pin(async move {
-            // Skip auth if disabled
             if !config.enabled {
                 return inner.call(req).await;
             }
 
-            // Extract Authorization header
             let auth_header = req
                 .headers()
                 .get(AUTHORIZATION)
                 .and_then(|h| h.to_str().ok());
 
             let Some(auth_header) = auth_header else {
-                let response = (
-                    StatusCode::UNAUTHORIZED,
-                    Json(AuthError {
-                        error: "Unauthorized",
-                        message: "Missing Authorization header".to_string(),
-                    }),
-                )
-                    .into_response();
-                return Ok(response);
+                return Ok(unauthorized_response("Missing Authorization header"));
             };
 
             let Some(token) = extract_bearer_token(auth_header) else {
-                let response = (
-                    StatusCode::UNAUTHORIZED,
-                    Json(AuthError {
-                        error: "Unauthorized",
-                        message: "Invalid Authorization header format".to_string(),
-                    }),
-                )
-                    .into_response();
-                return Ok(response);
+                return Ok(unauthorized_response("Invalid Authorization header format"));
             };
 
-            // Check for dev token bypass
             if is_dev_token_match(token, &config) {
-                tracing::debug!("Dev token authentication successful");
+                tracing::warn!("Dev token authentication used - ensure this is disabled in production");
                 return inner.call(req).await;
             }
 
-            // Validate JWT
+            if let Some(jwks) = jwks_cache.get().await {
+                match validate_jwt_with_jwks(token, &jwks) {
+                    Ok(claims) => {
+                        tracing::debug!(sub = %claims.sub, "JWT authentication successful");
+                        req.extensions_mut().insert(claims);
+                        return inner.call(req).await;
+                    }
+                    Err(JwtError::KidNotFound(kid)) => {
+                        tracing::info!(kid = %kid, "Key not found, attempting JWKS refresh");
+                        if jwks_cache.try_refresh().await.unwrap_or(false)
+                            && let Some(refreshed_jwks) = jwks_cache.get().await
+                            && let Ok(claims) = validate_jwt_with_jwks(token, &refreshed_jwks)
+                        {
+                            tracing::debug!(sub = %claims.sub, "JWT authentication successful after JWKS refresh");
+                            req.extensions_mut().insert(claims);
+                            return inner.call(req).await;
+                        }
+                        tracing::warn!(kid = %kid, "JWT authentication failed: key not found even after refresh");
+                        return Ok(unauthorized_response("Invalid or expired token"));
+                    }
+                    Err(err) => {
+                        tracing::warn!(error = %err, "JWT authentication failed");
+                        return Ok(unauthorized_response("Invalid or expired token"));
+                    }
+                }
+            }
+
             match validate_jwt(token, &config) {
                 Ok(claims) => {
                     tracing::debug!(sub = %claims.sub, "JWT authentication successful");
+                    req.extensions_mut().insert(claims);
                     inner.call(req).await
                 }
                 Err(err) => {
                     tracing::warn!(error = %err, "JWT authentication failed");
-                    let response = (
-                        StatusCode::UNAUTHORIZED,
-                        Json(AuthError {
-                            error: "Unauthorized",
-                            message: err,
-                        }),
-                    )
-                        .into_response();
-                    Ok(response)
+                    Ok(unauthorized_response("Invalid or expired token"))
                 }
             }
         })
