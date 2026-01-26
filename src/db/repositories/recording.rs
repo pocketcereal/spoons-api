@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::db::models::{NewRecordingRow, RecordingRow};
 use crate::db::schema::recordings;
-use crate::db::{get_conn, parse_uuid, validate_batch_size, DbPool};
+use crate::db::{db_error, get_conn, parse_uuid, validate_batch_size, DbPool};
 use crate::error::{AppError, Result};
 use crate::musicbrainz::Recording;
 
@@ -32,7 +32,7 @@ impl RecordingRepository {
             .first(&mut conn)
             .await
             .optional()
-            .map_err(|e| AppError::Database(format!("Failed to get cached recording: {}", e)))?;
+            .map_err(db_error("Failed to get cached recording"))?;
 
         Ok(result.map(Into::into))
     }
@@ -49,7 +49,7 @@ impl RecordingRepository {
             .first(&mut conn)
             .await
             .optional()
-            .map_err(|e| AppError::Database(format!("Failed to get recording: {}", e)))?;
+            .map_err(db_error("Failed to get recording"))?;
 
         Ok(result.map(Into::into))
     }
@@ -71,7 +71,7 @@ impl RecordingRepository {
             .select(RecordingRow::as_select())
             .load(&mut conn)
             .await
-            .map_err(|e| AppError::Database(format!("Failed to get recordings by IDs: {}", e)))?;
+            .map_err(db_error("Failed to get recordings by IDs"))?;
 
         Ok(results.into_iter().map(Into::into).collect())
     }
@@ -97,7 +97,7 @@ impl RecordingRepository {
             ))
             .execute(&mut conn)
             .await
-            .map_err(|e| AppError::Database(format!("Failed to upsert recording: {}", e)))?;
+            .map_err(db_error("Failed to upsert recording"))?;
 
         Ok(())
     }
@@ -138,7 +138,7 @@ impl RecordingRepository {
             ))
             .execute(&mut conn)
             .await
-            .map_err(|e| AppError::Database(format!("Failed to batch upsert recordings: {}", e)))?;
+            .map_err(db_error("Failed to batch upsert recordings"))?;
 
         Ok(())
     }

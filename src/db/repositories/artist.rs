@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::db::models::{AreaRow, ArtistRow, NewAreaRow, NewArtistRow};
 use crate::db::schema::{areas, artists};
-use crate::db::{get_conn, parse_uuid, validate_batch_size, DbPool};
+use crate::db::{db_error, get_conn, parse_uuid, validate_batch_size, DbPool};
 use crate::error::{AppError, Result};
 use crate::musicbrainz::Artist;
 
@@ -33,7 +33,7 @@ impl ArtistRepository {
             .first(&mut conn)
             .await
             .optional()
-            .map_err(|e| AppError::Database(format!("Failed to get cached artist: {}", e)))?;
+            .map_err(db_error("Failed to get cached artist"))?;
 
         Ok(result.map(|(artist_row, area_row)| {
             artist_row.into_artist(area_row.map(Into::into))
@@ -53,7 +53,7 @@ impl ArtistRepository {
             .first(&mut conn)
             .await
             .optional()
-            .map_err(|e| AppError::Database(format!("Failed to get artist: {}", e)))?;
+            .map_err(db_error("Failed to get artist"))?;
 
         Ok(result.map(|(artist_row, area_row)| {
             artist_row.into_artist(area_row.map(Into::into))
@@ -78,7 +78,7 @@ impl ArtistRepository {
             .select((ArtistRow::as_select(), Option::<AreaRow>::as_select()))
             .load(&mut conn)
             .await
-            .map_err(|e| AppError::Database(format!("Failed to get artists by IDs: {}", e)))?;
+            .map_err(db_error("Failed to get artists by IDs"))?;
 
         Ok(results
             .into_iter()
@@ -118,7 +118,7 @@ impl ArtistRepository {
                         ))
                         .execute(conn)
                         .await
-                        .map_err(|e| AppError::Database(format!("Failed to upsert area: {}", e)))?;
+                        .map_err(db_error("Failed to upsert area"))?;
                 }
 
                 diesel::insert_into(artists::table)
@@ -138,7 +138,7 @@ impl ArtistRepository {
                     ))
                     .execute(conn)
                     .await
-                    .map_err(|e| AppError::Database(format!("Failed to upsert artist: {}", e)))?;
+                    .map_err(db_error("Failed to upsert artist"))?;
 
                 Ok(())
             })
@@ -177,7 +177,7 @@ impl ArtistRepository {
                 ))
                 .execute(&mut conn)
                 .await
-                .map_err(|e| AppError::Database(format!("Failed to batch upsert areas: {}", e)))?;
+                .map_err(db_error("Failed to batch upsert areas"))?;
         }
 
         let new_artists: Vec<NewArtistRow> = artists_list
@@ -211,7 +211,7 @@ impl ArtistRepository {
             ))
             .execute(&mut conn)
             .await
-            .map_err(|e| AppError::Database(format!("Failed to batch upsert artists: {}", e)))?;
+            .map_err(db_error("Failed to batch upsert artists"))?;
 
         Ok(())
     }

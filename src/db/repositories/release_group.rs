@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::db::models::{NewReleaseGroupRow, ReleaseGroupRow};
 use crate::db::schema::release_groups;
-use crate::db::{get_conn, parse_uuid, validate_batch_size, DbPool};
+use crate::db::{db_error, get_conn, parse_uuid, validate_batch_size, DbPool};
 use crate::error::{AppError, Result};
 use crate::musicbrainz::ReleaseGroup;
 
@@ -32,7 +32,7 @@ impl ReleaseGroupRepository {
             .first(&mut conn)
             .await
             .optional()
-            .map_err(|e| AppError::Database(format!("Failed to get cached release group: {}", e)))?;
+            .map_err(db_error("Failed to get cached release group"))?;
 
         Ok(result.map(Into::into))
     }
@@ -49,7 +49,7 @@ impl ReleaseGroupRepository {
             .first(&mut conn)
             .await
             .optional()
-            .map_err(|e| AppError::Database(format!("Failed to get release group: {}", e)))?;
+            .map_err(db_error("Failed to get release group"))?;
 
         Ok(result.map(Into::into))
     }
@@ -71,7 +71,7 @@ impl ReleaseGroupRepository {
             .select(ReleaseGroupRow::as_select())
             .load(&mut conn)
             .await
-            .map_err(|e| AppError::Database(format!("Failed to get release groups by IDs: {}", e)))?;
+            .map_err(db_error("Failed to get release groups by IDs"))?;
 
         Ok(results.into_iter().map(Into::into).collect())
     }
@@ -98,7 +98,7 @@ impl ReleaseGroupRepository {
             ))
             .execute(&mut conn)
             .await
-            .map_err(|e| AppError::Database(format!("Failed to upsert release group: {}", e)))?;
+            .map_err(db_error("Failed to upsert release group"))?;
 
         Ok(())
     }
@@ -140,7 +140,7 @@ impl ReleaseGroupRepository {
             ))
             .execute(&mut conn)
             .await
-            .map_err(|e| AppError::Database(format!("Failed to batch upsert release groups: {}", e)))?;
+            .map_err(db_error("Failed to batch upsert release groups"))?;
 
         Ok(())
     }

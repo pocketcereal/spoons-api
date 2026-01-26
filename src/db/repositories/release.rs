@@ -7,7 +7,7 @@ use uuid::Uuid;
 
 use crate::db::models::{NewReleaseGroupRow, NewReleaseRow, ReleaseGroupRow, ReleaseRow};
 use crate::db::schema::{release_groups, releases};
-use crate::db::{get_conn, parse_uuid, validate_batch_size, DbPool};
+use crate::db::{db_error, get_conn, parse_uuid, validate_batch_size, DbPool};
 use crate::error::{AppError, Result};
 use crate::musicbrainz::Release;
 
@@ -36,7 +36,7 @@ impl ReleaseRepository {
             .first(&mut conn)
             .await
             .optional()
-            .map_err(|e| AppError::Database(format!("Failed to get cached release: {}", e)))?;
+            .map_err(db_error("Failed to get cached release"))?;
 
         Ok(result.map(|(release_row, release_group_row)| {
             release_row.into_release(release_group_row.map(Into::into))
@@ -59,7 +59,7 @@ impl ReleaseRepository {
             .first(&mut conn)
             .await
             .optional()
-            .map_err(|e| AppError::Database(format!("Failed to get release: {}", e)))?;
+            .map_err(db_error("Failed to get release"))?;
 
         Ok(result.map(|(release_row, release_group_row)| {
             release_row.into_release(release_group_row.map(Into::into))
@@ -87,7 +87,7 @@ impl ReleaseRepository {
             ))
             .load(&mut conn)
             .await
-            .map_err(|e| AppError::Database(format!("Failed to get releases by IDs: {}", e)))?;
+            .map_err(db_error("Failed to get releases by IDs"))?;
 
         Ok(results
             .into_iter()
@@ -133,7 +133,7 @@ impl ReleaseRepository {
                         ))
                         .execute(conn)
                         .await
-                        .map_err(|e| AppError::Database(format!("Failed to upsert release group: {}", e)))?;
+                        .map_err(db_error("Failed to upsert release group"))?;
                 }
 
                 diesel::insert_into(releases::table)
@@ -153,7 +153,7 @@ impl ReleaseRepository {
                     ))
                     .execute(conn)
                     .await
-                    .map_err(|e| AppError::Database(format!("Failed to upsert release: {}", e)))?;
+                    .map_err(db_error("Failed to upsert release"))?;
 
                 Ok(())
             })
@@ -196,7 +196,7 @@ impl ReleaseRepository {
                 ))
                 .execute(&mut conn)
                 .await
-                .map_err(|e| AppError::Database(format!("Failed to batch upsert release groups: {}", e)))?;
+                .map_err(db_error("Failed to batch upsert release groups"))?;
         }
 
         let new_releases: Vec<NewReleaseRow> = releases_list
@@ -230,7 +230,7 @@ impl ReleaseRepository {
             ))
             .execute(&mut conn)
             .await
-            .map_err(|e| AppError::Database(format!("Failed to batch upsert releases: {}", e)))?;
+            .map_err(db_error("Failed to batch upsert releases"))?;
 
         Ok(())
     }
