@@ -119,12 +119,17 @@ macro_rules! impl_cache_repository {
 
 ## Step-by-Step Refactor Plan
 
-### Phase 1: Extract Shared Constants and Validation
-1. Move `MAX_BATCH_SIZE` to helpers.rs
-2. Create `validate_batch_size()` helper
-3. Apply to all 4 repositories
-4. Run `task check`
-5. Commit: `[refactor]: repository-shared-constants`
+### Phase 1: Extract Shared Constants and Validation - **DONE**
+1. ~~Move `MAX_BATCH_SIZE` to helpers.rs~~
+2. ~~Create `validate_batch_size()` helper~~
+3. ~~Apply to all 4 repositories~~
+4. ~~Run `task check`~~
+5. ~~Commit: `[refactor]: repository-shared-constants`~~
+
+### Phase 1.5: Apply db_error Helper - **DONE**
+1. ~~Apply `db_error()` to all repository files~~
+2. ~~27 error mappings simplified~~
+3. ~~Commit: `[refactor]: repository-error-helpers`~~
 
 ### Phase 2: Extract Cache Query Pattern
 1. Create `cached_by_id_query()` helper function

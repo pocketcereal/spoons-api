@@ -18,7 +18,9 @@
 | 7 | Repository duplication | Phase 1 DONE | See `LARGER_REFACTOR.md` |
 | 8 | Search cache duplication | Blocked by #7 | See `LARGER_REFACTOR.md` |
 
-**Phase 1 Complete:** Extracted `MAX_BATCH_SIZE` and `validate_batch_size()` helper.
+**Completed Phases:**
+- Phase 1: Extracted `MAX_BATCH_SIZE` and `validate_batch_size()` helper
+- Phase 1.5: Applied `db_error()` helper to all repositories (27 error mappings)
 
 **Remaining phases** require trait-based abstraction with complex Diesel type handling. Documented in `REPOSITORY_REFACTOR.md` for dedicated refactoring session.
 
