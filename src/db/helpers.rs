@@ -20,6 +20,22 @@ pub async fn get_conn(
         .map_err(|e| AppError::Database(format!("Failed to get connection: {}", e)))
 }
 
+/// Maximum batch size for bulk operations.
+pub const MAX_BATCH_SIZE: usize = 100;
+
+/// Validate that a batch size doesn't exceed the maximum.
+/// Returns an error if the batch is too large, or Ok(()) if within limits.
+pub fn validate_batch_size(len: usize) -> Result<()> {
+    if len > MAX_BATCH_SIZE {
+        return Err(AppError::Server(format!(
+            "Batch size {} exceeds maximum of {}",
+            len,
+            MAX_BATCH_SIZE
+        )));
+    }
+    Ok(())
+}
+
 /// Create a database error with context message.
 ///
 /// This helper reduces boilerplate for the common pattern of:
