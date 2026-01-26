@@ -18,3 +18,5 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 - Refactored search_cache.rs to use new `db_error()` helper, reducing code duplication
+- Extracted `MAX_BATCH_SIZE` constant and `validate_batch_size()` helper to db/helpers.rs
+- Applied shared batch validation to all 4 repository files

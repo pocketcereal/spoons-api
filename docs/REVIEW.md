@@ -90,7 +90,17 @@ Created `db_error()` helper in src/db/helpers.rs to reduce repetition.
 | 4. Response error handling | **DONE** |
 | 5. GraphQL GET support | **DONE** |
 | 6. Error mapping helper | **DONE** |
-| 7. Repository duplication | Needs larger refactor |
-| 8. Search cache duplication | Needs larger refactor |
+| 7. Repository duplication | **IN PROGRESS** - Phase 1 complete (shared constants) |
+| 8. Search cache duplication | Needs larger refactor (blocked by #7) |
 | 9. Database pool config | Minor - defer |
 | 10. MusicBrainz params | Minor - defer |
+
+## Refactor Progress
+
+See `docs/REPOSITORY_REFACTOR.md` for detailed plan.
+
+- [x] Phase 1: Extract shared constants and validation
+- [ ] Phase 2: Extract cache query pattern
+- [ ] Phase 3: Extract batch query pattern
+- [ ] Phase 4: Extract batch upsert pattern
+- [ ] Phase 5: Cleanup and documentation
