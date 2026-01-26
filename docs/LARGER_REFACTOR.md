@@ -4,7 +4,7 @@
 
 ### Problem
 All four repository files (artist.rs, recording.rs, release.rs, release_group.rs) have 90%+ code duplication with identical:
-- `MAX_BATCH_SIZE = 100` constant
+- ~~`MAX_BATCH_SIZE = 100` constant~~ **DONE** - extracted to helpers.rs
 - `get_cached()` method pattern
 - `get_by_id()` method pattern
 - `get_by_ids()` with batch validation
@@ -111,3 +111,16 @@ impl SearchCacheRepository {
 2. **Search Cache Generic Trait** (builds on repository refactor)
 
 Both refactors share a common dependency structure and should be planned together.
+
+---
+
+## Progress
+
+### Phase 1: Shared Constants - **COMPLETE**
+- Extracted `MAX_BATCH_SIZE` to `src/db/helpers.rs`
+- Created `validate_batch_size()` helper
+- Applied to all 4 repository files
+- Commit: `[refactor]: repository-shared-constants`
+
+### Next Steps
+See `docs/REPOSITORY_REFACTOR.md` for detailed phase-by-phase plan.

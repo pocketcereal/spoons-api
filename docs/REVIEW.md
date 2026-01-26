@@ -54,29 +54,23 @@ Created `db_error()` helper in src/db/helpers.rs to reduce repetition.
 
 ---
 
-### 9. Database Pool Configuration
+### 9. Database Pool Configuration - **DEFERRED**
 
-**Description:** Pool builder only sets `max_size()`. Missing min_idle, wait_timeout, and health check configuration which are important for production.
+**Description:** Pool builder only sets `max_size()`. Missing min_idle, wait_timeout, and health check configuration.
 
-**Options:**
-- **Option A: Add full configuration** - Extend DbConfig with all pool settings.
-- **Option B: Sensible defaults** - Add hardcoded sensible defaults without config exposure.
+**Analysis:** The deadpool Pool builder has limited configuration options. Runtime settings like wait_timeout require additional setup. Current defaults are reasonable for development.
 
-#### Likely Best Solution
-**Option B** for now - add sensible defaults. Can expose to config later if needed.
+**Decision:** Defer to production hardening phase. Current behavior is acceptable.
 
 ---
 
-### 10. MusicBrainz Query Parameter Inconsistency
+### 10. MusicBrainz Query Parameter Inconsistency - **DEFERRED**
 
-**Description:** Some methods use `?fmt=json` directly in the path string, while the search methods use a params struct. Should be consistent.
+**Description:** Some methods use `?fmt=json` directly in the path string, while search methods use a params struct.
 
-**Options:**
-- **Option A: All use params struct** - Create `FormatParam { fmt: "json" }` for single-entity fetches.
-- **Option B: All use path string** - Simpler but less flexible.
+**Analysis:** This is a minor consistency issue. The current approach works correctly and the MusicBrainz client is relatively simple.
 
-#### Likely Best Solution
-**Option A** - Consistency with search methods, easier to extend.
+**Decision:** Defer - low impact, not worth the churn.
 
 ---
 
@@ -92,8 +86,8 @@ Created `db_error()` helper in src/db/helpers.rs to reduce repetition.
 | 6. Error mapping helper | **DONE** |
 | 7. Repository duplication | **IN PROGRESS** - Phase 1 complete (shared constants) |
 | 8. Search cache duplication | Needs larger refactor (blocked by #7) |
-| 9. Database pool config | Minor - defer |
-| 10. MusicBrainz params | Minor - defer |
+| 9. Database pool config | **DEFERRED** - Low priority, current behavior acceptable |
+| 10. MusicBrainz params | **DEFERRED** - Minor consistency, low impact |
 
 ## Refactor Progress
 
