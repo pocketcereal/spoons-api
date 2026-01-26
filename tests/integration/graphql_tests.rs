@@ -19,10 +19,12 @@ async fn setup_graphql_test() -> (TestDb, Schema<QueryRoot, EmptyMutation, Empty
     let test_db = TestDb::new().await;
     test_db.truncate_tables().await;
 
-    let client = MusicBrainzClient::new("https://musicbrainz.org/ws/2").unwrap();
+    let client = MusicBrainzClient::new("https://musicbrainz.org/ws/2")
+        .expect("Failed to create MusicBrainz client");
     let app_context = AppContext {
         db_pool: test_db.pool.clone(),
         musicbrainz_client: client,
+        audius_client: None,
         cache_ttl_seconds: 86400, // Long TTL for tests
     };
 

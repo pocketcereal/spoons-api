@@ -11,8 +11,20 @@ use crate::config::{LogFormat, LoggingConfig};
 
 /// Initialize the logging system based on configuration.
 pub fn init(config: &LoggingConfig) {
-    let filter =
-        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&config.level));
+    // Build filter with noisy crates silenced
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+        EnvFilter::new(&config.level)
+            // Silence verbose database driver logs
+            .add_directive("tokio_postgres=warn".parse().expect("valid directive"))
+            .add_directive("diesel=warn".parse().expect("valid directive"))
+            .add_directive("diesel_async=warn".parse().expect("valid directive"))
+            // Silence other noisy crates
+            .add_directive("hyper=warn".parse().expect("valid directive"))
+            .add_directive("hyper_util=warn".parse().expect("valid directive"))
+            .add_directive("reqwest=warn".parse().expect("valid directive"))
+            .add_directive("rustls=warn".parse().expect("valid directive"))
+            .add_directive("h2=warn".parse().expect("valid directive"))
+    });
 
     let registry = tracing_subscriber::registry().with(filter);
 

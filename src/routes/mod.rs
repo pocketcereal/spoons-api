@@ -8,16 +8,16 @@ use axum::Router;
 use crate::auth::{AuthConfig, auth_layer};
 use crate::graphql::AppSchema;
 
-/// Build the application router with all routes.
 pub fn build_router(auth_config: AuthConfig, schema: AppSchema) -> Router {
-    // Public routes (no auth required)
-    let public_routes = Router::new()
-        .merge(health::routes())
-        .merge(graphql::routes(schema));
+    let mut public_routes = Router::new().merge(health::routes());
 
-    // Protected routes (auth required)
+    if !auth_config.enabled {
+        tracing::info!("GraphiQL playground enabled at /graphiql (auth disabled)");
+        public_routes = public_routes.merge(graphql::graphiql_route());
+    }
+
     let protected_routes = Router::new()
-        // Future protected routes will be added here
+        .merge(graphql::graphql_route(schema))
         .layer(auth_layer(auth_config));
 
     Router::new().merge(public_routes).merge(protected_routes)
@@ -35,7 +35,6 @@ mod tests {
         let auth_config = AuthConfig::default();
         let client = MusicBrainzClient::new("https://musicbrainz.org/ws/2").unwrap();
 
-        // Skip test if no DATABASE_URL - this is expected in CI without DB
         let db_url = match std::env::var("DATABASE_URL") {
             Ok(url) => url,
             Err(_) => return,
@@ -51,6 +50,7 @@ mod tests {
         let app_context = AppContext {
             db_pool: pool,
             musicbrainz_client: client,
+            audius_client: None,
             cache_ttl_seconds: 3600,
         };
 

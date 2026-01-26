@@ -12,7 +12,7 @@ pub use release::ReleaseRepository;
 pub use release_group::ReleaseGroupRepository;
 pub use search_cache::SearchCacheRepository;
 
-use crate::db::DbPool;
+use crate::db::{DbPool, spawn_cache_task};
 use crate::error::Result;
 use crate::musicbrainz::{Artist, MusicBrainzClient, Recording, Release, ReleaseGroup};
 
@@ -38,12 +38,10 @@ impl MusicRepository {
         let artist = client.get_artist(id).await?;
 
         // Store in cache (fire and forget)
-        let pool_clone = pool.clone();
-        let artist_clone = artist.clone();
-        tokio::spawn(async move {
-            if let Err(e) = ArtistRepository::upsert(&pool_clone, &artist_clone).await {
-                tracing::warn!(error = %e, "Failed to cache artist");
-            }
+        let pool = pool.clone();
+        let artist_for_cache = artist.clone();
+        spawn_cache_task("artist", move || async move {
+            ArtistRepository::upsert(&pool, &artist_for_cache).await
         });
 
         Ok(artist)
@@ -72,16 +70,11 @@ impl MusicRepository {
         let artists = client.search_artists(query, limit, offset).await?;
 
         // Store in cache (fire and forget)
-        let pool_clone = pool.clone();
+        let pool = pool.clone();
         let query_owned = query.to_string();
-        let artists_clone = artists.clone();
-        tokio::spawn(async move {
-            if let Err(e) =
-                SearchCacheRepository::cache_artist_search(&pool_clone, &query_owned, &artists_clone)
-                    .await
-            {
-                tracing::warn!(error = %e, "Failed to cache artist search");
-            }
+        let artists_for_cache = artists.clone();
+        spawn_cache_task("artist search", move || async move {
+            SearchCacheRepository::cache_artist_search(&pool, &query_owned, limit, offset, &artists_for_cache).await
         });
 
         Ok(artists)
@@ -102,12 +95,10 @@ impl MusicRepository {
         tracing::debug!(id, "Release cache miss, fetching from API");
         let release = client.get_release(id).await?;
 
-        let pool_clone = pool.clone();
-        let release_clone = release.clone();
-        tokio::spawn(async move {
-            if let Err(e) = ReleaseRepository::upsert(&pool_clone, &release_clone).await {
-                tracing::warn!(error = %e, "Failed to cache release");
-            }
+        let pool = pool.clone();
+        let release_for_cache = release.clone();
+        spawn_cache_task("release", move || async move {
+            ReleaseRepository::upsert(&pool, &release_for_cache).await
         });
 
         Ok(release)
@@ -133,16 +124,11 @@ impl MusicRepository {
         tracing::debug!(query, "Release search cache miss, fetching from API");
         let releases = client.search_releases(query, limit, offset).await?;
 
-        let pool_clone = pool.clone();
+        let pool = pool.clone();
         let query_owned = query.to_string();
-        let releases_clone = releases.clone();
-        tokio::spawn(async move {
-            if let Err(e) =
-                SearchCacheRepository::cache_release_search(&pool_clone, &query_owned, &releases_clone)
-                    .await
-            {
-                tracing::warn!(error = %e, "Failed to cache release search");
-            }
+        let releases_for_cache = releases.clone();
+        spawn_cache_task("release search", move || async move {
+            SearchCacheRepository::cache_release_search(&pool, &query_owned, limit, offset, &releases_for_cache).await
         });
 
         Ok(releases)
@@ -165,12 +151,10 @@ impl MusicRepository {
         tracing::debug!(id, "Recording cache miss, fetching from API");
         let recording = client.get_recording(id).await?;
 
-        let pool_clone = pool.clone();
-        let recording_clone = recording.clone();
-        tokio::spawn(async move {
-            if let Err(e) = RecordingRepository::upsert(&pool_clone, &recording_clone).await {
-                tracing::warn!(error = %e, "Failed to cache recording");
-            }
+        let pool = pool.clone();
+        let recording_for_cache = recording.clone();
+        spawn_cache_task("recording", move || async move {
+            RecordingRepository::upsert(&pool, &recording_for_cache).await
         });
 
         Ok(recording)
@@ -201,19 +185,11 @@ impl MusicRepository {
         tracing::debug!(query, "Recording search cache miss, fetching from API");
         let recordings = client.search_recordings(query, limit, offset).await?;
 
-        let pool_clone = pool.clone();
+        let pool = pool.clone();
         let query_owned = query.to_string();
-        let recordings_clone = recordings.clone();
-        tokio::spawn(async move {
-            if let Err(e) = SearchCacheRepository::cache_recording_search(
-                &pool_clone,
-                &query_owned,
-                &recordings_clone,
-            )
-            .await
-            {
-                tracing::warn!(error = %e, "Failed to cache recording search");
-            }
+        let recordings_for_cache = recordings.clone();
+        spawn_cache_task("recording search", move || async move {
+            SearchCacheRepository::cache_recording_search(&pool, &query_owned, limit, offset, &recordings_for_cache).await
         });
 
         Ok(recordings)
@@ -236,12 +212,10 @@ impl MusicRepository {
         tracing::debug!(id, "Release group cache miss, fetching from API");
         let release_group = client.get_release_group(id).await?;
 
-        let pool_clone = pool.clone();
-        let release_group_clone = release_group.clone();
-        tokio::spawn(async move {
-            if let Err(e) = ReleaseGroupRepository::upsert(&pool_clone, &release_group_clone).await {
-                tracing::warn!(error = %e, "Failed to cache release group");
-            }
+        let pool = pool.clone();
+        let release_group_for_cache = release_group.clone();
+        spawn_cache_task("release group", move || async move {
+            ReleaseGroupRepository::upsert(&pool, &release_group_for_cache).await
         });
 
         Ok(release_group)
@@ -272,19 +246,11 @@ impl MusicRepository {
         tracing::debug!(query, "Release group search cache miss, fetching from API");
         let release_groups = client.search_release_groups(query, limit, offset).await?;
 
-        let pool_clone = pool.clone();
+        let pool = pool.clone();
         let query_owned = query.to_string();
-        let release_groups_clone = release_groups.clone();
-        tokio::spawn(async move {
-            if let Err(e) = SearchCacheRepository::cache_release_group_search(
-                &pool_clone,
-                &query_owned,
-                &release_groups_clone,
-            )
-            .await
-            {
-                tracing::warn!(error = %e, "Failed to cache release group search");
-            }
+        let release_groups_for_cache = release_groups.clone();
+        spawn_cache_task("release group search", move || async move {
+            SearchCacheRepository::cache_release_group_search(&pool, &query_owned, limit, offset, &release_groups_for_cache).await
         });
 
         Ok(release_groups)

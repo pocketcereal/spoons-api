@@ -1,7 +1,5 @@
 //! Database connection pool management.
 
-#![allow(dead_code)]
-
 use diesel_async::AsyncPgConnection;
 use diesel_async::pooled_connection::AsyncDieselConnectionManager;
 use diesel_async::pooled_connection::deadpool::Pool;

@@ -1,5 +1,7 @@
 version: '3'
 
+dotenv: ['.env']
+
 vars:
   BINARY_NAME: spoons-api
   DOCKER_REGISTRY: '{{.REGISTRY | default "ghcr.io"}}'
@@ -58,12 +60,20 @@ tasks:
   dev:
     desc: Run development server
     cmds:
+      - lsof -ti:4000 | xargs kill -9 2>/dev/null || true
       - cargo run -- start --config config.yaml
+
+  watch:
+    desc: Run development server with auto-reload
+    cmds:
+      - lsof -ti:4000 | xargs kill -9 2>/dev/null || true
+      - cargo watch -x 'run -- start --config config.yaml'
 
   run:
     desc: Run release binary
     deps: [build]
     cmds:
+      - lsof -ti:4000 | xargs kill -9 2>/dev/null || true
       - ./target/release/{{.BINARY_NAME}} start --config config.yaml
 
   # Docker tasks
@@ -92,32 +102,29 @@ tasks:
       - cargo install diesel_cli --no-default-features --features postgres
 
   db:create:
-    desc: Create database
-    env:
-      DATABASE_URL: postgres://spoons:spoons@localhost:5432/spoons
+    desc: Create database (uses DATABASE_URL from .env)
     cmds:
       - diesel database setup
 
   db:migrate:
-    desc: Run database migrations
-    env:
-      DATABASE_URL: postgres://spoons:spoons@localhost:5432/spoons
+    desc: Run database migrations (uses DATABASE_URL from .env)
     cmds:
       - diesel migration run
 
   db:redo:
-    desc: Redo last migration
-    env:
-      DATABASE_URL: postgres://spoons:spoons@localhost:5432/spoons
+    desc: Redo last migration (uses DATABASE_URL from .env)
     cmds:
       - diesel migration redo
 
   db:reset:
-    desc: Reset database (drop and recreate)
-    env:
-      DATABASE_URL: postgres://spoons:spoons@localhost:5432/spoons
+    desc: Reset database - drop and recreate (uses DATABASE_URL from .env)
     cmds:
       - diesel database reset
+
+  db:print-schema:
+    desc: Print schema from database to src/db/schema.rs
+    cmds:
+      - diesel print-schema > src/db/schema.rs
 
   # Test database tasks
   db:test:create:

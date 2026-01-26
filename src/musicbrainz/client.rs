@@ -1,9 +1,7 @@
 //! MusicBrainz API client.
 
-#![allow(dead_code)]
-
 use crate::error::Result;
-use crate::http::{ApiClient, ClientConfig};
+use crate::http::{ApiClient, ClientConfig, DEFAULT_API_TIMEOUT};
 
 use super::types::{Artist, Recording, Release, ReleaseGroup, SearchResult};
 
@@ -17,7 +15,7 @@ impl MusicBrainzClient {
     /// Create a new MusicBrainz client.
     pub fn new(base_url: &str) -> Result<Self> {
         let client = ClientConfig::new(base_url)
-            .with_timeout(std::time::Duration::from_secs(30))
+            .with_timeout(DEFAULT_API_TIMEOUT)
             .build()?;
 
         Ok(Self { client })
