@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### Removed
 - Removed unused `redis` dependency from Cargo.toml
 - Removed dead `cache` module (src/cache/) - Redis caching was not being used
+- Removed unused `futures` dependency from Cargo.toml
 
 ### Fixed
 - Fixed `is_retryable_error` in HTTP client - removed `is_request()` check which incorrectly retried client errors (4xx)
