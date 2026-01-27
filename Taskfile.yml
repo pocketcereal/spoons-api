@@ -166,3 +166,9 @@ tasks:
     cmds:
       - task: test
       - task: test:integration
+
+  # Smoke tests for external API connectivity
+  test:smoke:
+    desc: Run smoke tests for external API datasources (MusicBrainz, Audius)
+    cmds:
+      - cargo test --test integration external_api_smoke_tests -- --ignored --test-threads=1
