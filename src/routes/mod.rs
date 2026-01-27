@@ -51,6 +51,7 @@ mod tests {
             db_pool: pool,
             musicbrainz_client: client,
             audius_client: None,
+            podcast_index_client: None,
             cache_ttl_seconds: 3600,
         };
 

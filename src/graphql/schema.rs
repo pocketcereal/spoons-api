@@ -1,6 +1,8 @@
 //! GraphQL schema definition and query handlers.
 
-use async_graphql::{Context, EmptyMutation, EmptySubscription, ErrorExtensions, Object, Schema};
+use async_graphql::{
+    Context, EmptyMutation, EmptySubscription, ErrorExtensions, MergedObject, Object, Schema,
+};
 use std::sync::Arc;
 
 use crate::audius::AudiusClient;
@@ -8,7 +10,9 @@ use crate::db::{DbPool, MusicRepository};
 use crate::domain::DataSource;
 use crate::error::AppError;
 use crate::musicbrainz::MusicBrainzClient;
+use crate::podcast_index::PodcastIndexClient;
 
+use super::podcast::PodcastQuery;
 use super::types::{Artist, Track};
 
 /// Result type alias for GraphQL resolvers that converts AppError to async_graphql::Error
@@ -21,11 +25,12 @@ pub struct AppContext {
     pub db_pool: DbPool,
     pub musicbrainz_client: MusicBrainzClient,
     pub audius_client: Option<AudiusClient>,
+    pub podcast_index_client: Option<PodcastIndexClient>,
     pub cache_ttl_seconds: i64,
 }
 
 pub fn build_schema(app_context: AppContext) -> AppSchema {
-    Schema::build(QueryRoot, EmptyMutation, EmptySubscription)
+    Schema::build(QueryRoot::default(), EmptyMutation, EmptySubscription)
         .data(Arc::new(app_context))
         .finish()
 }
@@ -94,10 +99,11 @@ where
     }
 }
 
-pub struct QueryRoot;
+#[derive(Default)]
+pub struct MusicQuery;
 
 #[Object]
-impl QueryRoot {
+impl MusicQuery {
     async fn version(&self) -> &str {
         env!("CARGO_PKG_VERSION")
     }
@@ -190,6 +196,9 @@ impl QueryRoot {
         }
     }
 }
+
+#[derive(MergedObject, Default)]
+pub struct QueryRoot(MusicQuery, PodcastQuery);
 
 async fn search_musicbrainz_artists(
     app_ctx: &AppContext,
@@ -297,6 +306,7 @@ mod tests {
             db_pool: pool,
             musicbrainz_client: client,
             audius_client: None,
+            podcast_index_client: None,
             cache_ttl_seconds: 3600,
         };
 

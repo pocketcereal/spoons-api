@@ -26,10 +26,11 @@ async fn setup_graphql_test() -> (TestDb, Schema<QueryRoot, EmptyMutation, Empty
         db_pool: test_db.pool.clone(),
         musicbrainz_client: client,
         audius_client: None,
+        podcast_index_client: None,
         cache_ttl_seconds: 86400, // Long TTL for tests
     };
 
-    let schema = Schema::build(QueryRoot, EmptyMutation, EmptySubscription)
+    let schema = Schema::build(QueryRoot::default(), EmptyMutation, EmptySubscription)
         .data(std::sync::Arc::new(app_context))
         .finish();
 

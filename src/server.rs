@@ -11,6 +11,7 @@ use crate::db::{DbConfig, create_pool};
 use crate::error::{AppError, Result};
 use crate::graphql::{AppContext, build_schema};
 use crate::musicbrainz::MusicBrainzClient;
+use crate::podcast_index::PodcastIndexClient;
 use crate::routes;
 
 pub async fn run(config: &AppConfig) -> Result<()> {
@@ -88,10 +89,42 @@ pub async fn run(config: &AppConfig) -> Result<()> {
         None
     };
 
+    let podcast_index_client = if config.podcast_index.enabled {
+        match (
+            &config.podcast_index.api_key,
+            &config.podcast_index.api_secret,
+        ) {
+            (Some(api_key), Some(api_secret)) => {
+                match PodcastIndexClient::with_base_url(
+                    api_key,
+                    api_secret,
+                    &config.podcast_index.base_url,
+                ) {
+                    Ok(client) => {
+                        tracing::info!(base_url = %config.podcast_index.base_url, "PodcastIndex client initialized");
+                        Some(client)
+                    }
+                    Err(e) => {
+                        tracing::warn!(error = %e, "Failed to initialize PodcastIndex client, podcast search will be disabled");
+                        None
+                    }
+                }
+            }
+            _ => {
+                tracing::warn!("PodcastIndex enabled but API credentials not configured");
+                None
+            }
+        }
+    } else {
+        tracing::info!("PodcastIndex integration disabled");
+        None
+    };
+
     let app_context = AppContext {
         db_pool,
         musicbrainz_client,
         audius_client,
+        podcast_index_client,
         cache_ttl_seconds: config.database.cache_ttl_seconds,
     };
 
