@@ -7,19 +7,23 @@ use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
 use crate::db::models::{
-    ArtistSearchCacheRow, NewArtistSearchCacheRow, NewRecordingSearchCacheRow,
-    NewReleaseGroupSearchCacheRow, NewReleaseSearchCacheRow, RecordingSearchCacheRow,
-    ReleaseGroupSearchCacheRow, ReleaseSearchCacheRow,
+    ArtistSearchCacheRow, NewArtistSearchCacheRow, NewPodcastSearchCacheRow,
+    NewRecordingSearchCacheRow, NewReleaseGroupSearchCacheRow, NewReleaseSearchCacheRow,
+    PodcastSearchCacheRow, RecordingSearchCacheRow, ReleaseGroupSearchCacheRow,
+    ReleaseSearchCacheRow,
 };
 use crate::db::repositories::{
-    ArtistRepository, RecordingRepository, ReleaseGroupRepository, ReleaseRepository,
+    ArtistRepository, PodcastRepository, RecordingRepository, ReleaseGroupRepository,
+    ReleaseRepository,
 };
 use crate::db::schema::{
-    artist_search_cache, recording_search_cache, release_group_search_cache, release_search_cache,
+    artist_search_cache, podcast_search_cache, recording_search_cache, release_group_search_cache,
+    release_search_cache,
 };
 use crate::db::{DbPool, db_error, get_conn};
 use crate::error::Result;
 use crate::musicbrainz::{Artist, Recording, Release, ReleaseGroup};
+use crate::podcast::Podcast;
 
 /// Generate a hash for a search query with pagination.
 pub fn hash_query(query: &str, limit: i32, offset: i32) -> String {
@@ -334,6 +338,78 @@ impl SearchCacheRepository {
             .execute(&mut conn)
             .await
             .map_err(db_error("Failed to cache release group search"))?;
+
+        Ok(())
+    }
+
+    // ==================== Podcast Search ====================
+
+    /// Get cached podcast search results if not expired.
+    pub async fn get_podcast_search(
+        pool: &DbPool,
+        query: &str,
+        limit: i32,
+        offset: i32,
+        cache_ttl_seconds: i64,
+    ) -> Result<Option<Vec<Podcast>>> {
+        let query_hash = hash_query(query, limit, offset);
+        let min_cached_at = Utc::now() - Duration::seconds(cache_ttl_seconds);
+        let mut conn = get_conn(pool).await?;
+
+        let cache_row: Option<PodcastSearchCacheRow> = podcast_search_cache::table
+            .filter(podcast_search_cache::query_hash.eq(&query_hash))
+            .filter(podcast_search_cache::cached_at.gt(min_cached_at))
+            .select(PodcastSearchCacheRow::as_select())
+            .first(&mut conn)
+            .await
+            .optional()
+            .map_err(db_error("Failed to get podcast search cache"))?;
+
+        match cache_row {
+            Some(row) => {
+                let podcast_ids: Vec<i64> = row.podcast_ids.into_iter().flatten().collect();
+                let podcasts = PodcastRepository::get_by_ids(pool, &podcast_ids).await?;
+                Ok(Some(podcasts))
+            }
+            None => Ok(None),
+        }
+    }
+
+    /// Cache podcast search results.
+    pub async fn cache_podcast_search(
+        pool: &DbPool,
+        query: &str,
+        limit: i32,
+        offset: i32,
+        podcasts: &[Podcast],
+    ) -> Result<()> {
+        PodcastRepository::upsert_many(pool, podcasts).await?;
+
+        let podcast_ids: Vec<i64> = podcasts.iter().map(|p| p.id).collect();
+
+        let query_hash = hash_query(query, limit, offset);
+
+        let new_cache = NewPodcastSearchCacheRow {
+            query_hash: query_hash.clone(),
+            query_text: query.to_string(),
+            podcast_ids,
+            total_count: podcasts.len() as i32,
+        };
+
+        let mut conn = get_conn(pool).await?;
+
+        diesel::insert_into(podcast_search_cache::table)
+            .values(&new_cache)
+            .on_conflict(podcast_search_cache::query_hash)
+            .do_update()
+            .set((
+                podcast_search_cache::podcast_ids.eq(&new_cache.podcast_ids),
+                podcast_search_cache::total_count.eq(&new_cache.total_count),
+                podcast_search_cache::cached_at.eq(Utc::now()),
+            ))
+            .execute(&mut conn)
+            .await
+            .map_err(db_error("Failed to cache podcast search"))?;
 
         Ok(())
     }

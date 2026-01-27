@@ -1,0 +1,7 @@
+//! GraphQL podcast types with source-agnostic interfaces.
+
+mod episode_types;
+mod podcast_types;
+
+pub use episode_types::{Episode, PodcastIndexEpisode};
+pub use podcast_types::{Category, Podcast, PodcastIndexPodcast, PodcastSource};

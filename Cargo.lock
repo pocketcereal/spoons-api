@@ -102,6 +102,7 @@ dependencies = [
  "asynk-strim",
  "base64",
  "bytes",
+ "chrono",
  "fast_chemail",
  "fnv",
  "futures-util",

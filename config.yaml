@@ -9,3 +9,15 @@ audius:
 database:
   max_connections: 10
   cache_ttl_seconds: 86400
+podcast_index:
+  enabled: true
+  api_key: ${PODCAST_INDEX_API_KEY}
+  api_secret: ${PODCAST_INDEX_API_SECRET}
+cache:
+  enabled: true
+  max_entries: 1000
+  trending_ttl_seconds: 300
+  search_ttl_seconds: 600
+  podcast_ttl_seconds: 86400
+  episode_ttl_seconds: 3600
+  categories_ttl_seconds: 86400

@@ -1,7 +1,9 @@
 //! PodcastIndex API client implementation.
 
 use crate::error::{AppError, Result};
+use crate::podcast::{Category, Episode, Podcast};
 use crate::podcast_index::auth::PodcastIndexAuth;
+use crate::podcast_index::endpoints;
 use reqwest::Client;
 use serde::Serialize;
 use serde::de::DeserializeOwned;
@@ -40,14 +42,12 @@ impl PodcastIndexClient {
     }
 
     /// Makes an authenticated GET request to the PodcastIndex API.
-    #[allow(dead_code)]
-    async fn get<T: DeserializeOwned>(&self, path: &str) -> Result<T> {
+    pub(crate) async fn get<T: DeserializeOwned>(&self, path: &str) -> Result<T> {
         self.get_with_query(path, &()).await
     }
 
     /// Makes an authenticated GET request with query parameters to the PodcastIndex API.
-    #[allow(dead_code)]
-    async fn get_with_query<T: DeserializeOwned, Q: Serialize>(
+    pub(crate) async fn get_with_query<T: DeserializeOwned, Q: Serialize>(
         &self,
         path: &str,
         query: &Q,
@@ -83,6 +83,58 @@ impl PodcastIndexClient {
             .json()
             .await
             .map_err(|e| AppError::ExternalApi(e.to_string()))
+    }
+
+    // Public API methods
+
+    /// Searches for podcasts using general term search.
+    pub async fn search_podcasts(&self, query: &str, limit: i32) -> Result<Vec<Podcast>> {
+        endpoints::search_podcasts(self, query, limit).await
+    }
+
+    /// Searches for podcasts by title.
+    pub async fn search_by_title(&self, title: &str, limit: i32) -> Result<Vec<Podcast>> {
+        endpoints::search_by_title(self, title, limit).await
+    }
+
+    /// Searches for podcasts by author/person.
+    pub async fn search_by_author(&self, author: &str, limit: i32) -> Result<Vec<Podcast>> {
+        endpoints::search_by_author(self, author, limit).await
+    }
+
+    /// Gets trending podcasts.
+    pub async fn trending(&self, limit: i32, categories: Option<&[i32]>) -> Result<Vec<Podcast>> {
+        endpoints::get_trending(self, limit, categories).await
+    }
+
+    /// Gets all available podcast categories.
+    pub async fn categories(&self) -> Result<Vec<Category>> {
+        endpoints::get_categories(self).await
+    }
+
+    /// Gets a podcast by its feed ID.
+    pub async fn get_podcast(&self, feed_id: i64) -> Result<Podcast> {
+        endpoints::get_podcast_by_feed_id(self, feed_id).await
+    }
+
+    /// Gets episodes for a podcast.
+    pub async fn get_episodes(&self, feed_id: i64, limit: i32) -> Result<Vec<Episode>> {
+        endpoints::get_episodes(self, feed_id, limit).await
+    }
+
+    /// Gets a single episode by its ID.
+    pub async fn get_episode(&self, episode_id: i64) -> Result<Episode> {
+        endpoints::get_episode_by_id(self, episode_id).await
+    }
+
+    /// Gets random episodes with optional filters.
+    pub async fn random_episodes(
+        &self,
+        limit: i32,
+        lang: Option<&str>,
+        categories: Option<&[i32]>,
+    ) -> Result<Vec<Episode>> {
+        endpoints::get_random_episodes(self, limit, lang, categories).await
     }
 }
 
