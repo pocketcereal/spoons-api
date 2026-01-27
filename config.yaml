@@ -1,23 +1,35 @@
+# Server configuration
 server:
-  port: 4000
+  port: 4000  # GraphQL API server port
+
+# Logging configuration
 logging:
-  level: debug
-  format: text
+  level: debug  # Options: trace, debug, info, warn, error
+  format: text  # Options: text, json
+
+# Audius music provider configuration
 audius:
   app_name: spoons-api
-  enabled: true
+  enabled: true  # Set to false to disable Audius integration
+
+# Database configuration
 database:
-  max_connections: 10
-  cache_ttl_seconds: 86400
+  max_connections: 10  # Maximum number of connections in the connection pool
+  cache_ttl_seconds: 86400  # How long to cache database results (24 hours)
+
+# PodcastIndex API configuration
+# Get API keys from https://api.podcastindex.org/
 podcast_index:
-  enabled: true
-  api_key: ${PODCAST_INDEX_API_KEY}
-  api_secret: ${PODCAST_INDEX_API_SECRET}
+  enabled: true  # Set to false to disable podcast features
+  api_key: ${PODCAST_INDEX_API_KEY}  # Your PodcastIndex API key
+  api_secret: ${PODCAST_INDEX_API_SECRET}  # Your PodcastIndex API secret
+
+# In-memory cache configuration
 cache:
-  enabled: true
-  max_entries: 1000
-  trending_ttl_seconds: 300
-  search_ttl_seconds: 600
-  podcast_ttl_seconds: 86400
-  episode_ttl_seconds: 3600
-  categories_ttl_seconds: 86400
+  enabled: true  # Set to false to disable in-memory caching
+  max_entries: 1000  # Maximum number of entries in the LRU cache
+  trending_ttl_seconds: 300  # Cache trending results for 5 minutes
+  search_ttl_seconds: 600  # Cache search results for 10 minutes
+  podcast_ttl_seconds: 86400  # Cache podcast details for 24 hours
+  episode_ttl_seconds: 3600  # Cache episode details for 1 hour
+  categories_ttl_seconds: 86400  # Cache categories for 24 hours

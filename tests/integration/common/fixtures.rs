@@ -3,8 +3,10 @@
 //! These fixtures use real MusicBrainz UUIDs for well-known artists, releases, etc.
 
 #![allow(dead_code)]
+#![allow(unused_imports)]
 
 use spoons_api::musicbrainz::{Area, Artist, LifeSpan, Recording, Release, ReleaseGroup};
+use spoons_api::podcast::{Category, Episode, Podcast};
 
 /// Nirvana artist fixture (real MusicBrainz UUID).
 pub fn nirvana_artist() -> Artist {
@@ -143,5 +145,119 @@ pub fn karma_police_recording() -> Recording {
         length: Some(264000), // ~4:24
         disambiguation: None,
         video: Some(false),
+    }
+}
+
+// ==================== Podcast Fixtures ====================
+
+/// Syntax podcast fixture (real PodcastIndex ID).
+pub fn syntax_podcast() -> Podcast {
+    Podcast {
+        id: 920666, // Real PodcastIndex ID for "Syntax - Tasty Web Development Treats"
+        title: "Syntax - Tasty Web Development Treats".to_string(),
+        author: Some("Wes Bos & Scott Tolinski".to_string()),
+        description: Some("A podcast about web development".to_string()),
+        artwork_url: Some("https://example.com/syntax-artwork.jpg".to_string()),
+        feed_url: "https://feed.syntax.fm/rss".to_string(),
+        language: Some("en".to_string()),
+        categories: vec![Category {
+            id: 102,
+            name: "Technology".to_string(),
+        }],
+        episode_count: Some(500),
+        latest_publish_time: None,
+        itunes_id: Some(1253186678),
+        trend_score: Some(42),
+        podcast_guid: Some("abc-123-syntax".to_string()),
+    }
+}
+
+/// The Daily podcast fixture.
+pub fn the_daily_podcast() -> Podcast {
+    Podcast {
+        id: 1200361, // Example ID
+        title: "The Daily".to_string(),
+        author: Some("The New York Times".to_string()),
+        description: Some(
+            "This is what the news should sound like. The biggest stories of our time.".to_string(),
+        ),
+        artwork_url: Some("https://example.com/daily-artwork.jpg".to_string()),
+        feed_url: "https://feeds.simplecast.com/54nAGcIl".to_string(),
+        language: Some("en".to_string()),
+        categories: vec![
+            Category {
+                id: 99,
+                name: "News".to_string(),
+            },
+            Category {
+                id: 100,
+                name: "Politics".to_string(),
+            },
+        ],
+        episode_count: Some(1200),
+        latest_publish_time: None,
+        itunes_id: Some(1200361),
+        trend_score: Some(95),
+        podcast_guid: Some("def-456-daily".to_string()),
+    }
+}
+
+/// Syntax episode fixture - JavaScript Performance Tips.
+pub fn syntax_episode_1() -> Episode {
+    Episode {
+        id: 12345678,
+        podcast_id: 920666, // Matches syntax_podcast()
+        title: "JavaScript Performance Tips".to_string(),
+        description: Some("Tips for making your JS faster".to_string()),
+        audio_url: "https://example.com/syntax-ep123.mp3".to_string(),
+        audio_type: Some("audio/mpeg".to_string()),
+        audio_length: Some(45000000), // ~45MB
+        duration_seconds: Some(3600), // 1 hour
+        published_at: None,
+        episode_number: Some(123),
+        season_number: Some(1),
+        episode_type: Some("full".to_string()),
+        image_url: None,
+        explicit: Some(false),
+    }
+}
+
+/// Syntax episode fixture - TypeScript Deep Dive.
+pub fn syntax_episode_2() -> Episode {
+    Episode {
+        id: 12345679,
+        podcast_id: 920666, // Matches syntax_podcast()
+        title: "TypeScript Deep Dive".to_string(),
+        description: Some("Everything you need to know about TypeScript".to_string()),
+        audio_url: "https://example.com/syntax-ep124.mp3".to_string(),
+        audio_type: Some("audio/mpeg".to_string()),
+        audio_length: Some(42000000),
+        duration_seconds: Some(3300),
+        published_at: None,
+        episode_number: Some(124),
+        season_number: Some(1),
+        episode_type: Some("full".to_string()),
+        image_url: Some("https://example.com/syntax-ep124.jpg".to_string()),
+        explicit: Some(false),
+    }
+}
+
+/// The Daily episode fixture.
+pub fn daily_episode() -> Episode {
+    Episode {
+        id: 87654321,
+        podcast_id: 1200361, // Matches the_daily_podcast()
+        title: "The Future of Climate Policy".to_string(),
+        description: Some("An in-depth look at global climate agreements".to_string()),
+        audio_url: "https://example.com/daily-ep456.mp3".to_string(),
+        audio_type: Some("audio/mpeg".to_string()),
+        audio_length: Some(30000000),
+        duration_seconds: Some(1800), // 30 minutes
+        published_at: None,
+        episode_number: Some(456),
+        season_number: None,
+        episode_type: Some("full".to_string()),
+        image_url: None,
+        explicit: Some(false),
     }
 }

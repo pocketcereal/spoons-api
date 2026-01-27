@@ -1,7 +1,7 @@
 //! Smoke tests for external API datasource connectivity.
 //!
 //! These tests verify that the API clients can successfully connect to
-//! and retrieve data from external services (MusicBrainz, Audius).
+//! and retrieve data from external services (MusicBrainz, Audius, PodcastIndex).
 //!
 //! NOTE: These tests make REAL network calls and are ignored by default.
 //! Run them explicitly with:
@@ -11,6 +11,8 @@
 
 use spoons_api::audius::AudiusClient;
 use spoons_api::musicbrainz::MusicBrainzClient;
+use spoons_api::podcast_index::PodcastIndexClient;
+use std::env;
 use std::time::Duration;
 use tokio::time::sleep;
 
@@ -301,5 +303,128 @@ mod audius {
 
         assert_eq!(&track.id, track_id);
         assert!(!track.title.is_empty(), "Track should have a title");
+    }
+}
+
+// ============================================================================
+// PodcastIndex API Tests
+// ============================================================================
+
+mod podcast_index {
+    use super::*;
+
+    fn create_client() -> Option<PodcastIndexClient> {
+        let api_key = env::var("PODCAST_INDEX_API_KEY").ok()?;
+        let api_secret = env::var("PODCAST_INDEX_API_SECRET").ok()?;
+        PodcastIndexClient::new(&api_key, &api_secret).ok()
+    }
+
+    #[tokio::test]
+    #[ignore = "Smoke test - requires PODCAST_INDEX_API_KEY and PODCAST_INDEX_API_SECRET"]
+    async fn smoke_test_search_podcasts() {
+        let Some(client) = create_client() else {
+            eprintln!("Skipping: PodcastIndex credentials not configured");
+            return;
+        };
+
+        let results = client
+            .search_podcasts("technology", 5)
+            .await
+            .expect("Failed to search podcasts");
+
+        assert!(!results.is_empty(), "Should return at least one podcast");
+        let first = &results[0];
+        assert!(!first.title.is_empty(), "Podcast should have a title");
+    }
+
+    #[tokio::test]
+    #[ignore = "Smoke test - requires PODCAST_INDEX_API_KEY and PODCAST_INDEX_API_SECRET"]
+    async fn smoke_test_trending() {
+        let Some(client) = create_client() else {
+            eprintln!("Skipping: PodcastIndex credentials not configured");
+            return;
+        };
+
+        let results = client
+            .trending(10, None)
+            .await
+            .expect("Failed to get trending podcasts");
+
+        assert!(!results.is_empty(), "Should return trending podcasts");
+    }
+
+    #[tokio::test]
+    #[ignore = "Smoke test - requires PODCAST_INDEX_API_KEY and PODCAST_INDEX_API_SECRET"]
+    async fn smoke_test_categories() {
+        let Some(client) = create_client() else {
+            eprintln!("Skipping: PodcastIndex credentials not configured");
+            return;
+        };
+
+        let categories = client.categories().await.expect("Failed to get categories");
+
+        assert!(!categories.is_empty(), "Should return categories");
+    }
+
+    #[tokio::test]
+    #[ignore = "Smoke test - requires PODCAST_INDEX_API_KEY and PODCAST_INDEX_API_SECRET"]
+    async fn smoke_test_get_podcast_by_id() {
+        let Some(client) = create_client() else {
+            eprintln!("Skipping: PodcastIndex credentials not configured");
+            return;
+        };
+
+        // First search to get a valid ID
+        let results = client
+            .search_podcasts("syntax", 1)
+            .await
+            .expect("Failed to search");
+
+        if let Some(podcast) = results.first() {
+            let fetched = client
+                .get_podcast(podcast.id)
+                .await
+                .expect("Failed to get podcast by ID");
+            assert_eq!(fetched.id, podcast.id);
+        }
+    }
+
+    #[tokio::test]
+    #[ignore = "Smoke test - requires PODCAST_INDEX_API_KEY and PODCAST_INDEX_API_SECRET"]
+    async fn smoke_test_get_episodes() {
+        let Some(client) = create_client() else {
+            eprintln!("Skipping: PodcastIndex credentials not configured");
+            return;
+        };
+
+        // Search for a podcast first
+        let results = client
+            .search_podcasts("syntax", 1)
+            .await
+            .expect("Failed to search");
+
+        if let Some(podcast) = results.first() {
+            let episodes = client
+                .get_episodes(podcast.id, 5)
+                .await
+                .expect("Failed to get episodes");
+            assert!(!episodes.is_empty(), "Should have episodes");
+        }
+    }
+
+    #[tokio::test]
+    #[ignore = "Smoke test - requires PODCAST_INDEX_API_KEY and PODCAST_INDEX_API_SECRET"]
+    async fn smoke_test_random_episodes() {
+        let Some(client) = create_client() else {
+            eprintln!("Skipping: PodcastIndex credentials not configured");
+            return;
+        };
+
+        let episodes = client
+            .random_episodes(5, Some("en"), None)
+            .await
+            .expect("Failed to get random episodes");
+
+        assert!(!episodes.is_empty(), "Should return random episodes");
     }
 }

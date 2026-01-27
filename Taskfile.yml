@@ -172,3 +172,8 @@ tasks:
     desc: Run smoke tests for external API datasources (MusicBrainz, Audius)
     cmds:
       - cargo test --test integration external_api_smoke_tests -- --ignored --test-threads=1
+
+  test:smoke:podcast:
+    desc: Run PodcastIndex API smoke tests (requires API credentials)
+    cmds:
+      - cargo test --test integration podcast_index -- --ignored --test-threads=1

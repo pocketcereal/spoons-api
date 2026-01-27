@@ -1,8 +1,36 @@
 # Podcast Integration Design
 
 **Date:** 2026-01-26
-**Status:** Approved
+**Status:** ✅ Complete
+**Completed:** 2026-01-26
 **Scope:** Migrate podcast discovery features from pocketcereal-api to spoons-api
+
+## Completion Status
+
+**Status:** ✅ Complete
+**Completed:** 2026-01-26
+
+### Implementation Summary
+- Phase 1: Foundation - ✅ Complete
+- Phase 2: Core Implementation - ✅ Complete
+- Phase 3: Query Resolvers - ✅ Complete
+- Phase 4: Server Wiring - ✅ Complete
+- Phase 5: Testing & Polish - ✅ Complete
+
+### Commits
+- `488910d` - Phase 1: Cache, client skeleton, migrations, domain types
+- `7960c29` - Phase 2: Endpoints, repositories, GraphQL types, config
+- `9cd47ce` - Phases 3-4: Query resolvers and server wiring
+- [current] - Phase 5: Integration tests, smoke tests, documentation
+
+### Deliverables
+- ✅ PodcastIndex API client with HMAC authentication
+- ✅ Two-tier caching system (in-memory + database)
+- ✅ GraphQL interface pattern for multi-source podcasts
+- ✅ Search, trending, categories, episodes queries
+- ✅ Database schema with migrations
+- ✅ Integration tests and smoke tests
+- ✅ Documentation (README, config comments, .env.example)
 
 ## Overview
 
