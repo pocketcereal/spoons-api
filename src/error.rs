@@ -30,6 +30,9 @@ pub enum AppError {
     #[error("Rate limited")]
     RateLimited,
 
+    #[error("External API error: {0}")]
+    ExternalApi(String),
+
     #[error("Internal error: {0}")]
     Internal(#[from] anyhow::Error),
 }
@@ -49,6 +52,7 @@ impl ErrorExtensions for AppError {
             AppError::NotFound(_) => e.set("code", "NOT_FOUND"),
             AppError::Unauthorized(_) => e.set("code", "UNAUTHORIZED"),
             AppError::RateLimited => e.set("code", "RATE_LIMITED"),
+            AppError::ExternalApi(_) => e.set("code", "EXTERNAL_API_ERROR"),
             AppError::Internal(_) => e.set("code", "INTERNAL_ERROR"),
         })
     }
@@ -71,6 +75,7 @@ impl IntoResponse for AppError {
             AppError::NotFound(msg) => (StatusCode::NOT_FOUND, msg.clone()),
             AppError::Unauthorized(msg) => (StatusCode::UNAUTHORIZED, msg.clone()),
             AppError::RateLimited => (StatusCode::TOO_MANY_REQUESTS, "Rate limited".to_string()),
+            AppError::ExternalApi(msg) => (StatusCode::BAD_GATEWAY, msg.clone()),
             AppError::Internal(err) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()),
         };
 
