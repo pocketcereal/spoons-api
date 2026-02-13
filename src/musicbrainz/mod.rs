@@ -3,6 +3,7 @@
 mod client;
 mod types;
 
-#[allow(unused_imports)]
 pub use client::MusicBrainzClient;
-pub use types::{Area, Artist, LifeSpan, Recording, Release, ReleaseGroup};
+pub use types::{
+    Area, Artist, ArtistCredit, ArtistCreditArtist, LifeSpan, Recording, Release, ReleaseGroup,
+};

@@ -6,8 +6,18 @@ pub mod podcasts;
 pub mod search;
 pub mod trending;
 
+/// Formats a slice of category IDs as a comma-separated string for the PodcastIndex API.
+pub(crate) fn format_category_list(categories: Option<&[i32]>) -> Option<String> {
+    categories.map(|cats| {
+        cats.iter()
+            .map(|c| c.to_string())
+            .collect::<Vec<_>>()
+            .join(",")
+    })
+}
+
 pub use categories::get_categories;
 pub use episodes::{get_episode_by_id, get_episodes, get_random_episodes};
 pub use podcasts::get_podcast_by_feed_id;
-pub use search::{search_by_author, search_by_title, search_podcasts};
+pub use search::{search_by_title, search_podcasts};
 pub use trending::get_trending;

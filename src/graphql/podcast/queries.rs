@@ -1,10 +1,9 @@
 //! GraphQL query resolvers for podcast operations.
 
-use async_graphql::{Context, Object, Result};
-use std::sync::Arc;
+use async_graphql::{Context, ErrorExtensions, Object, Result};
 
 use crate::error::AppError;
-use crate::graphql::AppContext;
+use crate::graphql::{clamp_limit, get_app_context, require_podcast_index_client, validate_query};
 use crate::podcast::PodcastSource as DomainPodcastSource;
 
 use super::{Category, Episode, Podcast};
@@ -20,7 +19,6 @@ impl PodcastQuery {
     /// # Arguments
     /// * `query` - Search term
     /// * `limit` - Maximum number of results (default: 20)
-    /// * `offset` - Result offset for pagination (default: 0)
     ///
     /// # Returns
     /// List of matching podcasts
@@ -29,19 +27,43 @@ impl PodcastQuery {
         ctx: &Context<'_>,
         query: String,
         #[graphql(default = 20)] limit: i32,
-        #[graphql(default = 0)] _offset: i32,
     ) -> Result<Vec<Podcast>> {
-        let app_ctx = ctx.data::<Arc<AppContext>>()?;
-
-        let client = app_ctx
-            .podcast_index_client
-            .as_ref()
-            .ok_or_else(|| AppError::Server("PodcastIndex not configured".to_string()))?;
+        let query = validate_query(&query)?;
+        let limit = clamp_limit(limit);
+        let app_ctx = get_app_context(ctx)?;
+        let client = require_podcast_index_client(app_ctx)?;
 
         let results = client
             .search_podcasts(&query, limit)
             .await
-            .map_err(|e| async_graphql::Error::new(e.to_string()))?;
+            .map_err(|e| e.extend())?;
+
+        Ok(results.into_iter().map(Podcast::from).collect())
+    }
+
+    /// Search podcasts by title.
+    ///
+    /// # Arguments
+    /// * `title` - Title to search for
+    /// * `limit` - Maximum number of results (default: 20)
+    ///
+    /// # Returns
+    /// List of matching podcasts (title-only search for more precise results)
+    async fn search_podcasts_by_title(
+        &self,
+        ctx: &Context<'_>,
+        title: String,
+        #[graphql(default = 20)] limit: i32,
+    ) -> Result<Vec<Podcast>> {
+        let title = validate_query(&title)?;
+        let limit = clamp_limit(limit);
+        let app_ctx = get_app_context(ctx)?;
+        let client = require_podcast_index_client(app_ctx)?;
+
+        let results = client
+            .search_by_title(&title, limit)
+            .await
+            .map_err(|e| e.extend())?;
 
         Ok(results.into_iter().map(Podcast::from).collect())
     }
@@ -60,18 +82,14 @@ impl PodcastQuery {
         #[graphql(default = 20)] limit: i32,
         categories: Option<Vec<i32>>,
     ) -> Result<Vec<Podcast>> {
-        let app_ctx = ctx.data::<Arc<AppContext>>()?;
+        let limit = clamp_limit(limit);
+        let app_ctx = get_app_context(ctx)?;
+        let client = require_podcast_index_client(app_ctx)?;
 
-        let client = app_ctx
-            .podcast_index_client
-            .as_ref()
-            .ok_or_else(|| AppError::Server("PodcastIndex not configured".to_string()))?;
-
-        let category_refs: Option<Vec<i32>> = categories;
         let results = client
-            .trending(limit, category_refs.as_deref())
+            .trending(limit, categories.as_deref())
             .await
-            .map_err(|e| async_graphql::Error::new(e.to_string()))?;
+            .map_err(|e| e.extend())?;
 
         Ok(results.into_iter().map(Podcast::from).collect())
     }
@@ -84,26 +102,22 @@ impl PodcastQuery {
     /// # Returns
     /// The podcast if found, None otherwise
     async fn podcast(&self, ctx: &Context<'_>, id: String) -> Result<Option<Podcast>> {
-        let app_ctx = ctx.data::<Arc<AppContext>>()?;
+        let app_ctx = get_app_context(ctx)?;
 
         // Parse the prefixed ID
         let (source, feed_id) = DomainPodcastSource::parse_id(&id).ok_or_else(|| {
-            async_graphql::Error::new(format!("Invalid podcast ID format: {}", id))
+            AppError::InvalidInput(format!("Invalid podcast ID format: {}", id)).extend()
         })?;
 
         match source {
             DomainPodcastSource::PodcastIndex => {
-                let client = app_ctx
-                    .podcast_index_client
-                    .as_ref()
-                    .ok_or_else(|| AppError::Server("PodcastIndex not configured".to_string()))?;
+                let client = require_podcast_index_client(app_ctx)?;
 
-                let podcast = client
-                    .get_podcast(feed_id)
-                    .await
-                    .map_err(|e| async_graphql::Error::new(e.to_string()))?;
-
-                Ok(Some(Podcast::from(podcast)))
+                match client.get_podcast(feed_id).await {
+                    Ok(podcast) => Ok(Some(Podcast::from(podcast))),
+                    Err(AppError::NotFound(_)) => Ok(None),
+                    Err(e) => Err(e.extend()),
+                }
             }
         }
     }
@@ -113,17 +127,10 @@ impl PodcastQuery {
     /// # Returns
     /// List of all available categories
     async fn podcast_categories(&self, ctx: &Context<'_>) -> Result<Vec<Category>> {
-        let app_ctx = ctx.data::<Arc<AppContext>>()?;
+        let app_ctx = get_app_context(ctx)?;
+        let client = require_podcast_index_client(app_ctx)?;
 
-        let client = app_ctx
-            .podcast_index_client
-            .as_ref()
-            .ok_or_else(|| AppError::Server("PodcastIndex not configured".to_string()))?;
-
-        let categories = client
-            .categories()
-            .await
-            .map_err(|e| async_graphql::Error::new(e.to_string()))?;
+        let categories = client.categories().await.map_err(|e| e.extend())?;
 
         Ok(categories.into_iter().map(Category::from).collect())
     }
@@ -142,24 +149,22 @@ impl PodcastQuery {
         podcast_id: String,
         #[graphql(default = 20)] limit: i32,
     ) -> Result<Vec<Episode>> {
-        let app_ctx = ctx.data::<Arc<AppContext>>()?;
+        let limit = clamp_limit(limit);
+        let app_ctx = get_app_context(ctx)?;
 
         // Parse the prefixed podcast ID
         let (source, feed_id) = DomainPodcastSource::parse_id(&podcast_id).ok_or_else(|| {
-            async_graphql::Error::new(format!("Invalid podcast ID format: {}", podcast_id))
+            AppError::InvalidInput(format!("Invalid podcast ID format: {}", podcast_id)).extend()
         })?;
 
         match source {
             DomainPodcastSource::PodcastIndex => {
-                let client = app_ctx
-                    .podcast_index_client
-                    .as_ref()
-                    .ok_or_else(|| AppError::Server("PodcastIndex not configured".to_string()))?;
+                let client = require_podcast_index_client(app_ctx)?;
 
                 let episodes = client
                     .get_episodes(feed_id, limit)
                     .await
-                    .map_err(|e| async_graphql::Error::new(e.to_string()))?;
+                    .map_err(|e| e.extend())?;
 
                 Ok(episodes.into_iter().map(Episode::from).collect())
             }
@@ -174,26 +179,22 @@ impl PodcastQuery {
     /// # Returns
     /// The episode if found, None otherwise
     async fn episode(&self, ctx: &Context<'_>, id: String) -> Result<Option<Episode>> {
-        let app_ctx = ctx.data::<Arc<AppContext>>()?;
+        let app_ctx = get_app_context(ctx)?;
 
         // Parse the prefixed ID
         let (source, episode_id) = DomainPodcastSource::parse_id(&id).ok_or_else(|| {
-            async_graphql::Error::new(format!("Invalid episode ID format: {}", id))
+            AppError::InvalidInput(format!("Invalid episode ID format: {}", id)).extend()
         })?;
 
         match source {
             DomainPodcastSource::PodcastIndex => {
-                let client = app_ctx
-                    .podcast_index_client
-                    .as_ref()
-                    .ok_or_else(|| AppError::Server("PodcastIndex not configured".to_string()))?;
+                let client = require_podcast_index_client(app_ctx)?;
 
-                let episode = client
-                    .get_episode(episode_id)
-                    .await
-                    .map_err(|e| async_graphql::Error::new(e.to_string()))?;
-
-                Ok(Some(Episode::from(episode)))
+                match client.get_episode(episode_id).await {
+                    Ok(episode) => Ok(Some(Episode::from(episode))),
+                    Err(AppError::NotFound(_)) => Ok(None),
+                    Err(e) => Err(e.extend()),
+                }
             }
         }
     }
@@ -214,18 +215,14 @@ impl PodcastQuery {
         language: Option<String>,
         categories: Option<Vec<i32>>,
     ) -> Result<Vec<Episode>> {
-        let app_ctx = ctx.data::<Arc<AppContext>>()?;
+        let limit = clamp_limit(limit);
+        let app_ctx = get_app_context(ctx)?;
+        let client = require_podcast_index_client(app_ctx)?;
 
-        let client = app_ctx
-            .podcast_index_client
-            .as_ref()
-            .ok_or_else(|| AppError::Server("PodcastIndex not configured".to_string()))?;
-
-        let category_refs: Option<Vec<i32>> = categories;
         let episodes = client
-            .random_episodes(limit, language.as_deref(), category_refs.as_deref())
+            .random_episodes(limit, language.as_deref(), categories.as_deref())
             .await
-            .map_err(|e| async_graphql::Error::new(e.to_string()))?;
+            .map_err(|e| e.extend())?;
 
         Ok(episodes.into_iter().map(Episode::from).collect())
     }

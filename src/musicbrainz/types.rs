@@ -105,6 +105,28 @@ pub struct Recording {
     pub disambiguation: Option<String>,
     /// Video flag.
     pub video: Option<bool>,
+    /// Artist credits.
+    #[serde(rename = "artist-credit", default)]
+    pub artist_credit: Vec<ArtistCredit>,
+}
+
+/// Artist credit entry from MusicBrainz.
+#[derive(Debug, Clone, Serialize, Deserialize, SimpleObject)]
+pub struct ArtistCredit {
+    /// The credited artist.
+    pub artist: ArtistCreditArtist,
+    /// Join phrase (e.g., " & ", " feat. ").
+    #[serde(default)]
+    pub joinphrase: String,
+}
+
+/// Minimal artist info within an artist credit.
+#[derive(Debug, Clone, Serialize, Deserialize, SimpleObject)]
+pub struct ArtistCreditArtist {
+    /// MusicBrainz ID.
+    pub id: String,
+    /// Artist name.
+    pub name: String,
 }
 
 /// Search result wrapper.

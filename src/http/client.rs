@@ -4,6 +4,7 @@
 //! that reuses connections across requests. This struct should be cloned
 //! and shared across the application rather than recreated per request.
 
+use reqwest::header::HeaderMap;
 use reqwest::{Client, Response, StatusCode};
 use serde::de::DeserializeOwned;
 use std::time::{Duration, Instant};
@@ -14,16 +15,6 @@ use crate::error::{AppError, Result};
 const DEFAULT_MAX_RETRIES: u32 = 3;
 /// Initial retry delay of 100ms.
 const DEFAULT_INITIAL_RETRY_DELAY_MS: u64 = 100;
-
-/// Authentication method for API requests.
-///
-/// Currently only `None` is used. Additional variants (Bearer, ApiKey, Basic)
-/// can be added when needed for new API integrations.
-#[derive(Debug, Clone)]
-pub enum AuthMethod {
-    /// No authentication required.
-    None,
-}
 
 /// Retry configuration for HTTP requests.
 #[derive(Debug, Clone)]
@@ -52,12 +43,11 @@ impl Default for RetryConfig {
 pub struct ApiClient {
     client: Client,
     base_url: String,
-    auth: AuthMethod,
     retry_config: RetryConfig,
 }
 
 impl ApiClient {
-    pub fn new(base_url: impl Into<String>, auth: AuthMethod, timeout: Duration) -> Result<Self> {
+    pub fn new(base_url: impl Into<String>, timeout: Duration) -> Result<Self> {
         let user_agent = format!("spoons-api/{}", env!("CARGO_PKG_VERSION"));
 
         let client = Client::builder()
@@ -69,7 +59,6 @@ impl ApiClient {
         Ok(Self {
             client,
             base_url: base_url.into(),
-            auth,
             retry_config: RetryConfig::default(),
         })
     }
@@ -78,12 +67,6 @@ impl ApiClient {
         let base = self.base_url.trim_end_matches('/');
         let path = path.trim_start_matches('/');
         format!("{}/{}", base, path)
-    }
-
-    fn add_auth(&self, builder: reqwest::RequestBuilder) -> reqwest::RequestBuilder {
-        match &self.auth {
-            AuthMethod::None => builder,
-        }
     }
 
     /// Determine if an error is retryable (timeouts and connection errors only).
@@ -104,7 +87,7 @@ impl ApiClient {
     }
 
     pub async fn get<T: DeserializeOwned>(&self, path: &str) -> Result<T> {
-        self.get_internal(path, None::<&()>).await
+        self.get_internal(path, None::<&()>, None).await
     }
 
     pub async fn get_with_query<T: DeserializeOwned, Q: serde::Serialize>(
@@ -112,13 +95,26 @@ impl ApiClient {
         path: &str,
         query: &Q,
     ) -> Result<T> {
-        self.get_internal(path, Some(query)).await
+        self.get_internal(path, Some(query), None).await
+    }
+
+    /// Makes a GET request with query parameters and extra headers.
+    ///
+    /// Use this when you need to inject per-request headers (e.g., for authentication).
+    pub async fn get_with_headers<T: DeserializeOwned, Q: serde::Serialize>(
+        &self,
+        path: &str,
+        query: &Q,
+        headers: HeaderMap,
+    ) -> Result<T> {
+        self.get_internal(path, Some(query), Some(headers)).await
     }
 
     async fn get_internal<T: DeserializeOwned, Q: serde::Serialize>(
         &self,
         path: &str,
         query: Option<&Q>,
+        extra_headers: Option<HeaderMap>,
     ) -> Result<T> {
         let url = self.build_url(path);
         let max_attempts = self.retry_config.max_retries + 1;
@@ -131,7 +127,9 @@ impl ApiClient {
             if let Some(q) = query {
                 builder = builder.query(q);
             }
-            builder = self.add_auth(builder);
+            if let Some(ref hdrs) = extra_headers {
+                builder = builder.headers(hdrs.clone());
+            }
 
             let result = builder.send().await;
 
@@ -247,12 +245,9 @@ mod tests {
 
     #[test]
     fn test_build_url() {
-        let client = ApiClient::new(
-            "https://api.example.com",
-            AuthMethod::None,
-            Duration::from_secs(30),
-        )
-        .expect("Failed to create API client");
+        let client =
+            ApiClient::new("https://api.example.com", Duration::from_secs(30))
+                .expect("Failed to create API client");
 
         assert_eq!(client.build_url("/users"), "https://api.example.com/users");
         assert_eq!(client.build_url("users"), "https://api.example.com/users");
@@ -260,12 +255,9 @@ mod tests {
 
     #[test]
     fn test_build_url_with_trailing_slash() {
-        let client = ApiClient::new(
-            "https://api.example.com/",
-            AuthMethod::None,
-            Duration::from_secs(30),
-        )
-        .expect("Failed to create API client");
+        let client =
+            ApiClient::new("https://api.example.com/", Duration::from_secs(30))
+                .expect("Failed to create API client");
 
         assert_eq!(client.build_url("/users"), "https://api.example.com/users");
     }

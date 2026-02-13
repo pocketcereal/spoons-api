@@ -1,4 +1,4 @@
-//! PodcastIndex API authentication using HMAC-SHA1.
+//! PodcastIndex API authentication using SHA-1 hash.
 
 use sha1::{Digest, Sha1};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -16,7 +16,6 @@ pub struct AuthHeaders {
     pub x_auth_key: String,
     pub x_auth_date: String,
     pub authorization: String,
-    pub user_agent: String,
 }
 
 impl PodcastIndexAuth {
@@ -48,7 +47,6 @@ impl PodcastIndexAuth {
             x_auth_key: self.api_key.clone(),
             x_auth_date: epoch,
             authorization,
-            user_agent: format!("spoons-api/{}", env!("CARGO_PKG_VERSION")),
         }
     }
 }
@@ -66,7 +64,6 @@ mod tests {
         assert_eq!(headers.x_auth_key, "test_key");
         assert!(!headers.x_auth_date.is_empty());
         assert_eq!(headers.authorization.len(), 40); // SHA1 hash is 40 hex chars
-        assert!(headers.user_agent.starts_with("spoons-api/"));
 
         // Verify epoch is numeric
         assert!(headers.x_auth_date.parse::<u64>().is_ok());

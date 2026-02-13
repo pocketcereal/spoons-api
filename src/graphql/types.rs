@@ -490,16 +490,33 @@ impl From<crate::musicbrainz::Artist> for MusicBrainzArtist {
 impl From<crate::musicbrainz::Recording> for MusicBrainzTrack {
     fn from(recording: crate::musicbrainz::Recording) -> Self {
         let prefixed_id = DataSource::MusicBrainz.prefix_id(&recording.id);
+        let artist_name = format_artist_credits(&recording.artist_credit);
         Self {
             id: prefixed_id,
             source_id: recording.id,
             title: recording.title,
             duration_ms: recording.length,
-            artist_name: None, // Would need artist-credits include
+            artist_name,
             disambiguation: recording.disambiguation,
             video: recording.video,
         }
     }
+}
+
+/// Formats artist credits into a combined artist name string.
+/// e.g., "Artist A feat. Artist B & Artist C"
+fn format_artist_credits(credits: &[crate::musicbrainz::ArtistCredit]) -> Option<String> {
+    if credits.is_empty() {
+        return None;
+    }
+    let mut result = String::new();
+    for credit in credits {
+        result.push_str(&credit.artist.name);
+        if !credit.joinphrase.is_empty() {
+            result.push_str(&credit.joinphrase);
+        }
+    }
+    Some(result)
 }
 
 impl From<crate::audius::AudiusUser> for AudiusArtist {

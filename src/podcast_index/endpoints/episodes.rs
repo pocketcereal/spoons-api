@@ -5,9 +5,12 @@ use crate::podcast::Episode;
 use crate::podcast_index::client::PodcastIndexClient;
 use crate::podcast_index::conversions::episode_from_podcast_episode;
 use crate::podcast_index::types::{
-    PodcastEpisode, PodcastIndexEpisodesResponse, PodcastIndexResponse,
+    PodcastIndexEpisodeByIdResponse, PodcastIndexEpisodesResponse,
+    PodcastIndexRandomEpisodesResponse,
 };
 use serde::Serialize;
+
+use super::format_category_list;
 
 #[derive(Debug, Serialize)]
 struct EpisodesByFeedParams {
@@ -63,18 +66,10 @@ pub async fn get_episodes(
 pub async fn get_episode_by_id(client: &PodcastIndexClient, episode_id: i64) -> Result<Episode> {
     let params = EpisodeByIdParams { id: episode_id };
 
-    let response: PodcastIndexResponse<PodcastEpisode> =
+    let response: PodcastIndexEpisodeByIdResponse =
         client.get_with_query("/episodes/byid", &params).await?;
 
-    // Handle the case where PodcastIndex returns an empty array for not found
-    let episode = response
-        .feed
-        .or_else(|| response.items.and_then(|items| items.into_iter().next()))
-        .ok_or_else(|| {
-            crate::error::AppError::NotFound(format!("Episode {} not found", episode_id))
-        })?;
-
-    Ok(episode_from_podcast_episode(episode))
+    Ok(episode_from_podcast_episode(response.episode))
 }
 
 /// Gets random episodes using the PodcastIndex `/episodes/random` endpoint.
@@ -90,24 +85,17 @@ pub async fn get_random_episodes(
     lang: Option<&str>,
     categories: Option<&[i32]>,
 ) -> Result<Vec<Episode>> {
-    let cat = categories.map(|cats| {
-        cats.iter()
-            .map(|c| c.to_string())
-            .collect::<Vec<_>>()
-            .join(",")
-    });
-
     let params = RandomEpisodesParams {
         max: limit.min(40),
         lang: lang.map(String::from),
-        cat,
+        cat: format_category_list(categories),
     };
 
-    let response: PodcastIndexResponse<PodcastEpisode> =
+    let response: PodcastIndexRandomEpisodesResponse =
         client.get_with_query("/episodes/random", &params).await?;
 
-    let episodes = response.items.unwrap_or_default();
-    Ok(episodes
+    Ok(response
+        .episodes
         .into_iter()
         .map(episode_from_podcast_episode)
         .collect())

@@ -1,10 +1,11 @@
 //! Trending podcasts endpoint implementation.
 
+use super::format_category_list;
 use crate::error::Result;
 use crate::podcast::Podcast;
 use crate::podcast_index::client::PodcastIndexClient;
 use crate::podcast_index::conversions::podcast_from_feed;
-use crate::podcast_index::types::PodcastIndexResponse;
+use crate::podcast_index::types::PodcastIndexListResponse;
 use serde::Serialize;
 
 #[derive(Debug, Serialize)]
@@ -25,19 +26,12 @@ pub async fn get_trending(
     limit: i32,
     categories: Option<&[i32]>,
 ) -> Result<Vec<Podcast>> {
-    let cat = categories.map(|cats| {
-        cats.iter()
-            .map(|c| c.to_string())
-            .collect::<Vec<_>>()
-            .join(",")
-    });
-
     let params = TrendingParams {
         max: limit.min(100),
-        cat,
+        cat: format_category_list(categories),
     };
 
-    let response: PodcastIndexResponse<crate::podcast_index::types::PodcastFeed> =
+    let response: PodcastIndexListResponse<crate::podcast_index::types::PodcastFeed> =
         client.get_with_query("/podcasts/trending", &params).await?;
 
     let feeds = response.feeds.unwrap_or_default();

@@ -111,6 +111,7 @@ diesel::table! {
         length_ms -> Nullable<Int8>,
         disambiguation -> Nullable<Text>,
         video -> Nullable<Bool>,
+        artist_credit -> Jsonb,
         cached_at -> Timestamptz,
         updated_at -> Timestamptz,
     }

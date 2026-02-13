@@ -2,14 +2,13 @@
 
 use std::time::Duration;
 
-use super::client::{ApiClient, AuthMethod};
+use super::client::ApiClient;
 use crate::error::Result;
 
 #[derive(Debug, Clone)]
 pub struct ClientConfig {
     pub base_url: String,
     pub timeout: Duration,
-    pub auth: AuthMethod,
 }
 
 impl ClientConfig {
@@ -17,7 +16,6 @@ impl ClientConfig {
         Self {
             base_url: base_url.into(),
             timeout: Duration::from_secs(30),
-            auth: AuthMethod::None,
         }
     }
 
@@ -27,7 +25,7 @@ impl ClientConfig {
     }
 
     pub fn build(self) -> Result<ApiClient> {
-        ApiClient::new(self.base_url, self.auth, self.timeout)
+        ApiClient::new(self.base_url, self.timeout)
     }
 }
 
@@ -42,6 +40,5 @@ mod tests {
 
         assert_eq!(config.base_url, "https://api.example.com");
         assert_eq!(config.timeout, Duration::from_secs(60));
-        assert!(matches!(config.auth, AuthMethod::None));
     }
 }

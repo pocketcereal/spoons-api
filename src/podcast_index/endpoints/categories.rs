@@ -3,11 +3,11 @@
 use crate::error::Result;
 use crate::podcast::Category;
 use crate::podcast_index::client::PodcastIndexClient;
-use crate::podcast_index::types::PodcastIndexResponse;
+use crate::podcast_index::types::PodcastIndexListResponse;
 
 /// Gets all available podcast categories using the PodcastIndex `/categories/list` endpoint.
 pub async fn get_categories(client: &PodcastIndexClient) -> Result<Vec<Category>> {
-    let response: PodcastIndexResponse<crate::podcast_index::types::Category> =
+    let response: PodcastIndexListResponse<crate::podcast_index::types::Category> =
         client.get("/categories/list").await?;
 
     let categories = response.feeds.unwrap_or_default();

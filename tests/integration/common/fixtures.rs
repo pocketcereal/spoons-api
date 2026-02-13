@@ -112,6 +112,7 @@ pub fn smells_like_teen_spirit_recording() -> Recording {
         length: Some(301000), // ~5:01
         disambiguation: None,
         video: Some(false),
+        artist_credit: Vec::new(),
     }
 }
 
@@ -123,6 +124,7 @@ pub fn paranoid_android_recording() -> Recording {
         length: Some(383000), // ~6:23
         disambiguation: None,
         video: Some(false),
+        artist_credit: Vec::new(),
     }
 }
 
@@ -134,6 +136,7 @@ pub fn come_as_you_are_recording() -> Recording {
         length: Some(219000), // ~3:39
         disambiguation: None,
         video: Some(false),
+        artist_credit: Vec::new(),
     }
 }
 
@@ -145,6 +148,7 @@ pub fn karma_police_recording() -> Recording {
         length: Some(264000), // ~4:24
         disambiguation: None,
         video: Some(false),
+        artist_credit: Vec::new(),
     }
 }
 

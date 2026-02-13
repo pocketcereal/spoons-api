@@ -4,6 +4,21 @@
 [print_schema]
 file = "src/db/schema.rs"
 custom_type_derives = ["diesel::query_builder::QueryId", "Clone"]
+filter = { only_tables = [
+    "areas",
+    "artist_search_cache",
+    "artists",
+    "episodes",
+    "podcast_search_cache",
+    "podcast_trending_cache",
+    "podcasts",
+    "recording_search_cache",
+    "recordings",
+    "release_group_search_cache",
+    "release_groups",
+    "release_search_cache",
+    "releases",
+] }
 
 [migrations_directory]
 dir = "migrations"

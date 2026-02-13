@@ -98,7 +98,7 @@ impl MusicBrainzClient {
 
     /// Get a recording by ID.
     pub async fn get_recording(&self, id: &str) -> Result<Recording> {
-        let path = format!("/recording/{}?fmt=json", id);
+        let path = format!("/recording/{}?inc=artist-credits&fmt=json", id);
         self.client.get(&path).await
     }
 

@@ -4,6 +4,7 @@ use async_graphql::{
     Context, EmptyMutation, EmptySubscription, ErrorExtensions, MergedObject, Object, Schema,
 };
 use std::sync::Arc;
+use std::time::Duration;
 
 use crate::audius::AudiusClient;
 use crate::db::{DbPool, MusicRepository};
@@ -32,13 +33,36 @@ pub struct AppContext {
 pub fn build_schema(app_context: AppContext) -> AppSchema {
     Schema::build(QueryRoot::default(), EmptyMutation, EmptySubscription)
         .data(Arc::new(app_context))
+        .limit_depth(10)
         .finish()
 }
 
-fn get_app_context<'a>(ctx: &'a Context<'_>) -> Result<&'a Arc<AppContext>, async_graphql::Error> {
+pub(crate) fn get_app_context<'a>(
+    ctx: &'a Context<'_>,
+) -> Result<&'a Arc<AppContext>, async_graphql::Error> {
     ctx.data::<Arc<AppContext>>().map_err(|_| {
         AppError::Internal(anyhow::anyhow!("Application context not configured")).extend()
     })
+}
+
+/// Maximum allowed length for search query strings.
+const MAX_QUERY_LENGTH: usize = 500;
+
+/// Validates and normalizes a search query string.
+/// Trims whitespace, enforces max length, and rejects empty strings.
+pub(crate) fn validate_query(query: &str) -> GqlResult<String> {
+    let trimmed = query.trim();
+    if trimmed.is_empty() {
+        return Err(AppError::InvalidInput("Search query cannot be empty".to_string()).extend());
+    }
+    if trimmed.len() > MAX_QUERY_LENGTH {
+        return Err(AppError::InvalidInput(format!(
+            "Search query too long (max {} characters)",
+            MAX_QUERY_LENGTH
+        ))
+        .extend());
+    }
+    Ok(trimmed.to_string())
 }
 
 /// Maximum allowed limit for search queries.
@@ -48,7 +72,7 @@ const MAX_SEARCH_LIMIT: i32 = 100;
 const MAX_SEARCH_OFFSET: i32 = 10000;
 
 /// Clamps the limit to the maximum allowed value.
-fn clamp_limit(limit: i32) -> i32 {
+pub(crate) fn clamp_limit(limit: i32) -> i32 {
     limit.clamp(1, MAX_SEARCH_LIMIT)
 }
 
@@ -62,8 +86,29 @@ fn require_audius_client(app_ctx: &AppContext) -> GqlResult<&AudiusClient> {
     app_ctx
         .audius_client
         .as_ref()
-        .ok_or_else(|| AppError::Server("Audius client not available".to_string()).extend())
+        .ok_or_else(|| {
+            AppError::FeatureDisabled(
+                "Audius is not configured. Set audius in config.yaml.".to_string(),
+            )
+            .extend()
+        })
 }
+
+/// Returns the PodcastIndex client or an error if not configured.
+pub(crate) fn require_podcast_index_client(app_ctx: &AppContext) -> GqlResult<&PodcastIndexClient> {
+    app_ctx
+        .podcast_index_client
+        .as_ref()
+        .ok_or_else(|| {
+            AppError::FeatureDisabled(
+                "PodcastIndex is not configured. Set podcast_index in config.yaml.".to_string(),
+            )
+            .extend()
+        })
+}
+
+/// Timeout for individual source queries when searching in parallel.
+const SOURCE_QUERY_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Searches multiple sources in parallel, combining results and logging failures.
 async fn search_sources<T, MbFut, AudiusFut>(
@@ -80,18 +125,25 @@ where
         Some(DataSource::MusicBrainz) => mb_search.await.map_err(|e| e.extend()),
         Some(DataSource::Audius) => audius_search.await.map_err(|e| e.extend()),
         None => {
-            let (mb_results, audius_results) = tokio::join!(mb_search, audius_search);
+            let (mb_results, audius_results) = tokio::join!(
+                tokio::time::timeout(SOURCE_QUERY_TIMEOUT, mb_search),
+                tokio::time::timeout(SOURCE_QUERY_TIMEOUT, audius_search),
+            );
 
             let mut combined = Vec::new();
 
             match mb_results {
-                Ok(items) => combined.extend(items),
-                Err(e) => tracing::warn!(error = %e, "MusicBrainz {} search failed", entity_name),
+                Ok(Ok(items)) => combined.extend(items),
+                Ok(Err(e)) => {
+                    tracing::warn!(error = %e, "MusicBrainz {} search failed", entity_name)
+                }
+                Err(_) => tracing::warn!("MusicBrainz {} search timed out", entity_name),
             }
 
             match audius_results {
-                Ok(items) => combined.extend(items),
-                Err(e) => tracing::warn!(error = %e, "Audius {} search failed", entity_name),
+                Ok(Ok(items)) => combined.extend(items),
+                Ok(Err(e)) => tracing::warn!(error = %e, "Audius {} search failed", entity_name),
+                Err(_) => tracing::warn!("Audius {} search timed out", entity_name),
             }
 
             Ok(combined)
@@ -116,6 +168,7 @@ impl MusicQuery {
         #[graphql(default = 25)] limit: i32,
         #[graphql(default = 0)] offset: i32,
     ) -> GqlResult<Vec<Artist>> {
+        let query = validate_query(&query)?;
         let app_ctx = get_app_context(ctx)?;
         let limit = clamp_limit(limit);
         let offset = clamp_offset(offset);
@@ -160,6 +213,7 @@ impl MusicQuery {
         #[graphql(default = 25)] limit: i32,
         #[graphql(default = 0)] offset: i32,
     ) -> GqlResult<Vec<Track>> {
+        let query = validate_query(&query)?;
         let app_ctx = get_app_context(ctx)?;
         let limit = clamp_limit(limit);
         let offset = clamp_offset(offset);

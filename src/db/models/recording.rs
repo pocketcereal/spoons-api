@@ -5,7 +5,7 @@ use diesel::prelude::*;
 use uuid::Uuid;
 
 use crate::db::schema::recordings;
-use crate::musicbrainz::Recording;
+use crate::musicbrainz::{ArtistCredit, Recording};
 
 /// Database row for recordings table.
 #[derive(Debug, Clone, Queryable, Selectable, Identifiable)]
@@ -16,6 +16,7 @@ pub struct RecordingRow {
     pub length_ms: Option<i64>,
     pub disambiguation: Option<String>,
     pub video: Option<bool>,
+    pub artist_credit: serde_json::Value,
     pub cached_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
 }
@@ -29,6 +30,7 @@ pub struct NewRecordingRow {
     pub length_ms: Option<i64>,
     pub disambiguation: Option<String>,
     pub video: Option<bool>,
+    pub artist_credit: serde_json::Value,
 }
 
 impl TryFrom<&Recording> for NewRecordingRow {
@@ -41,18 +43,23 @@ impl TryFrom<&Recording> for NewRecordingRow {
             length_ms: recording.length,
             disambiguation: recording.disambiguation.clone(),
             video: recording.video,
+            artist_credit: serde_json::to_value(&recording.artist_credit)
+                .expect("ArtistCredit serialization cannot fail"),
         })
     }
 }
 
 impl From<RecordingRow> for Recording {
     fn from(row: RecordingRow) -> Self {
+        let artist_credit: Vec<ArtistCredit> =
+            serde_json::from_value(row.artist_credit).unwrap_or_default();
         Self {
             id: row.id.to_string(),
             title: row.title,
             length: row.length_ms,
             disambiguation: row.disambiguation,
             video: row.video,
+            artist_credit,
         }
     }
 }
