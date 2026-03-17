@@ -1,11 +1,9 @@
-//! Server initialization and startup.
-
 use std::net::SocketAddr;
 use tokio::net::TcpListener;
 use tower_http::trace::TraceLayer;
 
 use crate::audius::AudiusClient;
-use crate::auth::AuthConfig;
+use crate::auth::{AuthConfig, fetch_jwks};
 use crate::config::AppConfig;
 use crate::db::{DbConfig, create_pool};
 use crate::error::{AppError, Result};
@@ -13,17 +11,21 @@ use crate::graphql::{AppContext, build_schema};
 use crate::musicbrainz::MusicBrainzClient;
 use crate::podcast_index::PodcastIndexClient;
 use crate::routes;
+use crate::services::{MusicService, PodcastService};
 
 pub async fn run(config: &AppConfig) -> Result<()> {
-    let mut auth_config = AuthConfig::from_env();
+    let auth_config = AuthConfig::from_env();
 
-    if let Err(e) = auth_config.fetch_jwks().await {
-        tracing::warn!(error = %e, "Failed to fetch JWKS, falling back to JWT secret");
-    }
+    let initial_jwks = match fetch_jwks(auth_config.supabase_url.as_deref()).await {
+        Ok(jwks) => jwks,
+        Err(e) => {
+            tracing::warn!(error = %e, "Failed to fetch JWKS, falling back to JWT secret");
+            None
+        }
+    };
 
-    // H8: Fail fast if auth is enabled but no valid auth method is configured
     if auth_config.enabled {
-        let has_jwks = auth_config.jwks.is_some();
+        let has_jwks = initial_jwks.is_some();
         let has_secret = auth_config.jwt_secret.is_some();
         let has_dev_token = auth_config.dev_token.is_some();
 
@@ -35,7 +37,6 @@ pub async fn run(config: &AppConfig) -> Result<()> {
             ));
         }
 
-        // M9: Warn if only dev token is configured (already logs on each request, but also at startup)
         if has_dev_token && !has_jwks && !has_secret {
             tracing::warn!(
                 "Only dev token authentication is configured - \
@@ -47,23 +48,11 @@ pub async fn run(config: &AppConfig) -> Result<()> {
     tracing::info!(
         auth_enabled = auth_config.enabled,
         dev_mode = auth_config.is_dev_mode(),
-        jwks_loaded = auth_config.jwks.is_some(),
+        jwks_loaded = initial_jwks.is_some(),
         "Auth configuration loaded"
     );
 
-    let db_url = config
-        .database
-        .url
-        .clone()
-        .or_else(|| std::env::var("SPOONS_DATABASE_URL").ok())
-        .or_else(|| std::env::var("DATABASE_URL").ok())
-        .ok_or_else(|| AppError::Config("DATABASE_URL must be set".to_string()))?;
-
-    let db_config = DbConfig {
-        url: db_url,
-        max_connections: config.database.max_connections,
-    };
-
+    let db_config = DbConfig::try_from(&config.database)?;
     let db_pool = create_pool(&db_config)?;
     tracing::info!(
         max_connections = config.database.max_connections,
@@ -89,7 +78,14 @@ pub async fn run(config: &AppConfig) -> Result<()> {
         None
     };
 
-    let podcast_index_client = if config.podcast_index.enabled {
+    let music = MusicService::new(
+        db_pool.clone(),
+        musicbrainz_client,
+        audius_client,
+        config.database.cache_ttl_seconds,
+    );
+
+    let podcast = if config.podcast_index.enabled {
         match (
             &config.podcast_index.api_key,
             &config.podcast_index.api_secret,
@@ -102,7 +98,11 @@ pub async fn run(config: &AppConfig) -> Result<()> {
                 ) {
                     Ok(client) => {
                         tracing::info!(base_url = %config.podcast_index.base_url, "PodcastIndex client initialized");
-                        Some(client)
+                        Some(PodcastService::new(
+                            db_pool,
+                            client,
+                            config.database.cache_ttl_seconds,
+                        ))
                     }
                     Err(e) => {
                         tracing::warn!(error = %e, "Failed to initialize PodcastIndex client, podcast search will be disabled");
@@ -120,18 +120,14 @@ pub async fn run(config: &AppConfig) -> Result<()> {
         None
     };
 
-    let app_context = AppContext {
-        db_pool,
-        musicbrainz_client,
-        audius_client,
-        podcast_index_client,
-        cache_ttl_seconds: config.database.cache_ttl_seconds,
-    };
+    let app_context = AppContext { music, podcast };
 
     let schema = build_schema(app_context);
     tracing::info!("GraphQL schema initialized");
 
-    let app = routes::build_router(auth_config, schema).layer(TraceLayer::new_for_http());
+    let app = routes::build_router(auth_config, initial_jwks, schema)
+        .await
+        .layer(TraceLayer::new_for_http());
 
     let addr = SocketAddr::from(([0, 0, 0, 0], config.server.port));
     tracing::info!(%addr, "Starting server");
@@ -141,8 +137,33 @@ pub async fn run(config: &AppConfig) -> Result<()> {
         .map_err(|e| AppError::Server(format!("Failed to bind to {}: {}", addr, e)))?;
 
     axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
         .await
         .map_err(|e| AppError::Server(format!("Server error: {}", e)))?;
 
     Ok(())
+}
+
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("Failed to install Ctrl+C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("Failed to install SIGTERM handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => tracing::info!("Received Ctrl+C, shutting down"),
+        _ = terminate => tracing::info!("Received SIGTERM, shutting down"),
+    }
 }

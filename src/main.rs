@@ -1,5 +1,3 @@
-//! Spoons API - A REST API for music data.
-
 use spoons_api::cli::{self, Commands, StartArgs};
 use spoons_api::config::{self, AppConfig};
 use spoons_api::logging;
@@ -17,7 +15,6 @@ async fn main() -> anyhow::Result<()> {
 async fn run_server(args: StartArgs) -> anyhow::Result<()> {
     let mut config = load_config(&args)?;
 
-    // Apply CLI overrides
     if let Some(port) = args.port {
         config.server.port = port;
     }
@@ -37,13 +34,7 @@ async fn run_server(args: StartArgs) -> anyhow::Result<()> {
 
 fn load_config(args: &StartArgs) -> anyhow::Result<AppConfig> {
     match &args.config {
-        Some(path) => {
-            tracing::info!(path = %path.display(), "Loading configuration");
-            config::load_config(path).map_err(Into::into)
-        }
-        None => {
-            tracing::info!("Using default configuration");
-            Ok(AppConfig::default())
-        }
+        Some(path) => config::load_config(path).map_err(Into::into),
+        None => Ok(AppConfig::default()),
     }
 }

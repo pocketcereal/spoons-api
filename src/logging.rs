@@ -1,5 +1,3 @@
-//! Logging initialization and configuration.
-
 use tracing_subscriber::{
     EnvFilter,
     fmt::{self, time::UtcTime},
@@ -9,44 +7,34 @@ use tracing_subscriber::{
 
 use crate::config::{LogFormat, LoggingConfig};
 
-/// Initialize the logging system based on configuration.
 pub fn init(config: &LoggingConfig) {
-    // Build filter with noisy crates silenced
     let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-        EnvFilter::new(&config.level)
-            // Silence verbose database driver logs
-            .add_directive("tokio_postgres=warn".parse().expect("valid directive"))
-            .add_directive("diesel=warn".parse().expect("valid directive"))
-            .add_directive("diesel_async=warn".parse().expect("valid directive"))
-            // Silence other noisy crates
-            .add_directive("hyper=warn".parse().expect("valid directive"))
-            .add_directive("hyper_util=warn".parse().expect("valid directive"))
-            .add_directive("reqwest=warn".parse().expect("valid directive"))
-            .add_directive("rustls=warn".parse().expect("valid directive"))
-            .add_directive("h2=warn".parse().expect("valid directive"))
+        let mut filter = EnvFilter::new(&config.level);
+        for directive in &config.filters {
+            filter = filter.add_directive(directive.parse().expect("valid log filter directive"));
+        }
+        filter
     });
 
     let registry = tracing_subscriber::registry().with(filter);
 
+    macro_rules! configure_layer {
+        ($layer:expr) => {
+            $layer
+                .with_timer(UtcTime::rfc_3339())
+                .with_target(true)
+                .with_thread_ids(false)
+                .with_file(false)
+                .with_line_number(false)
+        };
+    }
+
     match config.format {
         LogFormat::Json => {
-            let layer = fmt::layer()
-                .json()
-                .with_timer(UtcTime::rfc_3339())
-                .with_target(true)
-                .with_thread_ids(false)
-                .with_file(false)
-                .with_line_number(false);
-            registry.with(layer).init();
+            registry.with(configure_layer!(fmt::layer().json())).init();
         }
         LogFormat::Text => {
-            let layer = fmt::layer()
-                .with_timer(UtcTime::rfc_3339())
-                .with_target(true)
-                .with_thread_ids(false)
-                .with_file(false)
-                .with_line_number(false);
-            registry.with(layer).init();
+            registry.with(configure_layer!(fmt::layer())).init();
         }
     }
 

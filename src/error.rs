@@ -1,5 +1,3 @@
-//! Application error types and handling.
-
 use async_graphql::{Error as GraphQLError, ErrorExtensions};
 use axum::{
     Json,
@@ -8,8 +6,6 @@ use axum::{
 };
 use serde::Serialize;
 use thiserror::Error;
-
-/// Application-level errors.
 #[derive(Debug, Error)]
 pub enum AppError {
     #[error("Configuration error: {0}")]
@@ -48,7 +44,14 @@ impl From<diesel::result::Error> for AppError {
 
 impl ErrorExtensions for AppError {
     fn extend(&self) -> GraphQLError {
-        GraphQLError::new(format!("{}", self)).extend_with(|_err, e| match self {
+        let message = match self {
+            AppError::Config(_)
+            | AppError::Server(_)
+            | AppError::Database(_)
+            | AppError::Internal(_) => "Internal server error".to_string(),
+            other => format!("{}", other),
+        };
+        GraphQLError::new(message).extend_with(|_err, e| match self {
             AppError::Config(_) => e.set("code", "CONFIG_ERROR"),
             AppError::Server(_) => e.set("code", "SERVER_ERROR"),
             AppError::Database(_) => e.set("code", "DATABASE_ERROR"),
@@ -62,7 +65,6 @@ impl ErrorExtensions for AppError {
     }
 }
 
-/// Error response body for JSON responses.
 #[derive(Debug, Serialize)]
 pub struct ErrorResponse {
     pub error: String,
@@ -73,18 +75,21 @@ pub struct ErrorResponse {
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let (status, error_message) = match &self {
-            AppError::Config(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.clone()),
-            AppError::Server(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.clone()),
-            AppError::Database(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.clone()),
             AppError::NotFound(msg) => (StatusCode::NOT_FOUND, msg.clone()),
             AppError::Unauthorized(msg) => (StatusCode::UNAUTHORIZED, msg.clone()),
             AppError::RateLimited => (StatusCode::TOO_MANY_REQUESTS, "Rate limited".to_string()),
             AppError::InvalidInput(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
             AppError::FeatureDisabled(msg) => (StatusCode::SERVICE_UNAVAILABLE, msg.clone()),
-            AppError::Internal(err) => (StatusCode::INTERNAL_SERVER_ERROR, err.to_string()),
+            AppError::Config(_) | AppError::Server(_) | AppError::Database(_) | AppError::Internal(_) => {
+                (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string())
+            }
         };
 
-        tracing::error!(error = %self, "Request failed");
+        if status.is_server_error() {
+            tracing::error!(error = %self, "Request failed");
+        } else {
+            tracing::warn!(error = %self, "Request failed");
+        }
 
         let body = Json(ErrorResponse {
             error: status.canonical_reason().unwrap_or("Error").to_string(),

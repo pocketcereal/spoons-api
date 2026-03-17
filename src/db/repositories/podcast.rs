@@ -1,20 +1,16 @@
-//! Podcast repository for database operations.
-
-use chrono::{Duration, Utc};
+use chrono::Utc;
 use diesel::prelude::*;
 use diesel_async::RunQueryDsl;
 
 use crate::db::models::{NewPodcastRow, PodcastRow};
 use crate::db::schema::podcasts;
-use crate::db::{DbPool, db_error, get_conn, validate_batch_size};
+use crate::db::{DbPool, db_error, get_conn, min_cached_at, validate_batch_size};
 use crate::error::Result;
 use crate::podcast::Podcast;
 
-/// Repository for podcast database operations.
 pub struct PodcastRepository;
 
 impl PodcastRepository {
-    /// Get a podcast by ID (regardless of cache expiry).
     pub async fn get_by_id(pool: &DbPool, id: i64) -> Result<Option<Podcast>> {
         let mut conn = get_conn(pool).await?;
 
@@ -29,10 +25,6 @@ impl PodcastRepository {
         Ok(result.map(Into::into))
     }
 
-    /// Get multiple podcasts by their IDs.
-    ///
-    /// # Errors
-    /// Returns an error if the batch size exceeds the maximum allowed (100).
     pub async fn get_by_ids(pool: &DbPool, ids: &[i64]) -> Result<Vec<Podcast>> {
         if ids.is_empty() {
             return Ok(vec![]);
@@ -51,9 +43,8 @@ impl PodcastRepository {
         Ok(results.into_iter().map(Into::into).collect())
     }
 
-    /// Get a cached podcast by ID if not expired.
     pub async fn get_cached(pool: &DbPool, id: i64, ttl_seconds: i64) -> Result<Option<Podcast>> {
-        let min_cached_at = Utc::now() - Duration::seconds(ttl_seconds);
+        let min_cached_at = min_cached_at(ttl_seconds)?;
         let mut conn = get_conn(pool).await?;
 
         let result = podcasts::table
@@ -68,7 +59,6 @@ impl PodcastRepository {
         Ok(result.map(Into::into))
     }
 
-    /// Upsert a podcast (insert or update).
     pub async fn upsert(pool: &DbPool, podcast: &Podcast) -> Result<()> {
         let mut conn = get_conn(pool).await?;
         let new_podcast = NewPodcastRow::from(podcast);
@@ -100,11 +90,11 @@ impl PodcastRepository {
         Ok(())
     }
 
-    /// Upsert multiple podcasts using batch operations.
     pub async fn upsert_many(pool: &DbPool, podcast_list: &[Podcast]) -> Result<()> {
         if podcast_list.is_empty() {
             return Ok(());
         }
+        validate_batch_size(podcast_list.len())?;
 
         let mut conn = get_conn(pool).await?;
 

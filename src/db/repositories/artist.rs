@@ -1,28 +1,24 @@
-//! Artist repository for database operations.
-
-use chrono::{Duration, Utc};
+use chrono::Utc;
 use diesel::prelude::*;
 use diesel_async::{AsyncConnection, RunQueryDsl};
 use uuid::Uuid;
 
 use crate::db::models::{AreaRow, ArtistRow, NewAreaRow, NewArtistRow};
 use crate::db::schema::{areas, artists};
-use crate::db::{DbPool, db_error, get_conn, parse_uuid, validate_batch_size};
+use crate::db::{DbPool, db_error, get_conn, min_cached_at, parse_uuid, validate_batch_size};
 use crate::error::{AppError, Result};
 use crate::musicbrainz::Artist;
 
-/// Repository for artist database operations.
 pub struct ArtistRepository;
 
 impl ArtistRepository {
-    /// Get a cached artist by ID if not expired.
     pub async fn get_cached(
         pool: &DbPool,
         id: &str,
         cache_ttl_seconds: i64,
     ) -> Result<Option<Artist>> {
         let uuid = parse_uuid(id)?;
-        let min_cached_at = Utc::now() - Duration::seconds(cache_ttl_seconds);
+        let min_cached_at = min_cached_at(cache_ttl_seconds)?;
         let mut conn = get_conn(pool).await?;
 
         let result: Option<(ArtistRow, Option<AreaRow>)> = artists::table
@@ -38,7 +34,6 @@ impl ArtistRepository {
         Ok(result.map(|(artist_row, area_row)| artist_row.into_artist(area_row.map(Into::into))))
     }
 
-    /// Get an artist by ID (regardless of cache expiry).
     #[allow(dead_code)] // Used in integration tests
     pub async fn get_by_id(pool: &DbPool, id: &str) -> Result<Option<Artist>> {
         let uuid = parse_uuid(id)?;
@@ -56,10 +51,6 @@ impl ArtistRepository {
         Ok(result.map(|(artist_row, area_row)| artist_row.into_artist(area_row.map(Into::into))))
     }
 
-    /// Get multiple artists by their IDs.
-    ///
-    /// # Errors
-    /// Returns an error if the batch size exceeds the maximum allowed (100).
     pub async fn get_by_ids(pool: &DbPool, ids: &[Uuid]) -> Result<Vec<Artist>> {
         if ids.is_empty() {
             return Ok(vec![]);
@@ -82,8 +73,6 @@ impl ArtistRepository {
             .collect())
     }
 
-    /// Upsert an artist (insert or update).
-    ///
     /// Area and artist upserts are performed atomically within a transaction.
     pub async fn upsert(pool: &DbPool, artist: &Artist) -> Result<()> {
         let mut conn = get_conn(pool).await?;
@@ -143,11 +132,12 @@ impl ArtistRepository {
         .await
     }
 
-    /// Upsert multiple artists using batch operations.
     pub async fn upsert_many(pool: &DbPool, artists_list: &[Artist]) -> Result<()> {
         if artists_list.is_empty() {
             return Ok(());
         }
+
+        validate_batch_size(artists_list.len())?;
 
         let mut conn = get_conn(pool).await?;
 
@@ -161,23 +151,6 @@ impl ArtistRepository {
                 }).ok()
             })
             .collect();
-
-        if !new_areas.is_empty() {
-            diesel::insert_into(areas::table)
-                .values(&new_areas)
-                .on_conflict(areas::id)
-                .do_update()
-                .set((
-                    areas::name.eq(diesel::dsl::sql::<diesel::sql_types::Text>("excluded.name")),
-                    areas::sort_name.eq(diesel::dsl::sql::<
-                        diesel::sql_types::Nullable<diesel::sql_types::Text>,
-                    >("excluded.sort_name")),
-                    areas::updated_at.eq(Utc::now()),
-                ))
-                .execute(&mut conn)
-                .await
-                .map_err(db_error("Failed to batch upsert areas"))?;
-        }
 
         let new_artists: Vec<NewArtistRow> = artists_list
             .iter()
@@ -193,37 +166,59 @@ impl ArtistRepository {
             return Ok(());
         }
 
-        diesel::insert_into(artists::table)
-            .values(&new_artists)
-            .on_conflict(artists::id)
-            .do_update()
-            .set((
-                artists::name.eq(diesel::dsl::sql::<diesel::sql_types::Text>("excluded.name")),
-                artists::sort_name.eq(diesel::dsl::sql::<
-                    diesel::sql_types::Nullable<diesel::sql_types::Text>,
-                >("excluded.sort_name")),
-                artists::artist_type.eq(diesel::dsl::sql::<
-                    diesel::sql_types::Nullable<diesel::sql_types::Text>,
-                >("excluded.artist_type")),
-                artists::country.eq(diesel::dsl::sql::<
-                    diesel::sql_types::Nullable<diesel::sql_types::Text>,
-                >("excluded.country")),
-                artists::area_id.eq(diesel::dsl::sql::<
-                    diesel::sql_types::Nullable<diesel::sql_types::Uuid>,
-                >("excluded.area_id")),
-                artists::disambiguation.eq(diesel::dsl::sql::<
-                    diesel::sql_types::Nullable<diesel::sql_types::Text>,
-                >("excluded.disambiguation")),
-                artists::life_span.eq(diesel::dsl::sql::<
-                    diesel::sql_types::Nullable<diesel::sql_types::Jsonb>,
-                >("excluded.life_span")),
-                artists::updated_at.eq(Utc::now()),
-                artists::cached_at.eq(Utc::now()),
-            ))
-            .execute(&mut conn)
-            .await
-            .map_err(db_error("Failed to batch upsert artists"))?;
+        conn.transaction::<_, AppError, _>(|conn| {
+            Box::pin(async move {
+                if !new_areas.is_empty() {
+                    diesel::insert_into(areas::table)
+                        .values(&new_areas)
+                        .on_conflict(areas::id)
+                        .do_update()
+                        .set((
+                            areas::name.eq(diesel::dsl::sql::<diesel::sql_types::Text>("excluded.name")),
+                            areas::sort_name.eq(diesel::dsl::sql::<
+                                diesel::sql_types::Nullable<diesel::sql_types::Text>,
+                            >("excluded.sort_name")),
+                            areas::updated_at.eq(Utc::now()),
+                        ))
+                        .execute(conn)
+                        .await
+                        .map_err(db_error("Failed to batch upsert areas"))?;
+                }
 
-        Ok(())
+                diesel::insert_into(artists::table)
+                    .values(&new_artists)
+                    .on_conflict(artists::id)
+                    .do_update()
+                    .set((
+                        artists::name.eq(diesel::dsl::sql::<diesel::sql_types::Text>("excluded.name")),
+                        artists::sort_name.eq(diesel::dsl::sql::<
+                            diesel::sql_types::Nullable<diesel::sql_types::Text>,
+                        >("excluded.sort_name")),
+                        artists::artist_type.eq(diesel::dsl::sql::<
+                            diesel::sql_types::Nullable<diesel::sql_types::Text>,
+                        >("excluded.artist_type")),
+                        artists::country.eq(diesel::dsl::sql::<
+                            diesel::sql_types::Nullable<diesel::sql_types::Text>,
+                        >("excluded.country")),
+                        artists::area_id.eq(diesel::dsl::sql::<
+                            diesel::sql_types::Nullable<diesel::sql_types::Uuid>,
+                        >("excluded.area_id")),
+                        artists::disambiguation.eq(diesel::dsl::sql::<
+                            diesel::sql_types::Nullable<diesel::sql_types::Text>,
+                        >("excluded.disambiguation")),
+                        artists::life_span.eq(diesel::dsl::sql::<
+                            diesel::sql_types::Nullable<diesel::sql_types::Jsonb>,
+                        >("excluded.life_span")),
+                        artists::updated_at.eq(Utc::now()),
+                        artists::cached_at.eq(Utc::now()),
+                    ))
+                    .execute(conn)
+                    .await
+                    .map_err(db_error("Failed to batch upsert artists"))?;
+
+                Ok(())
+            })
+        })
+        .await
     }
 }

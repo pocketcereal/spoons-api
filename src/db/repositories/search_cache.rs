@@ -1,9 +1,8 @@
-//! Search cache repository for database operations.
-
-use chrono::{Duration, Utc};
+use chrono::Utc;
 use diesel::prelude::*;
 use diesel_async::RunQueryDsl;
 use sha2::{Digest, Sha256};
+use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::db::models::{
@@ -20,12 +19,27 @@ use crate::db::schema::{
     artist_search_cache, podcast_search_cache, recording_search_cache, release_group_search_cache,
     release_search_cache,
 };
-use crate::db::{DbPool, db_error, get_conn};
+use crate::db::{DbPool, db_error, get_conn, min_cached_at};
 use crate::error::Result;
 use crate::musicbrainz::{Artist, Recording, Release, ReleaseGroup};
 use crate::podcast::Podcast;
 
-/// Generate a hash for a search query with pagination.
+/// Returns `false` if some IDs are missing (stale cache).
+fn all_ids_resolved(entity: &str, expected: usize, actual: usize) -> bool {
+    if actual < expected {
+        tracing::warn!(
+            entity = entity,
+            expected = expected,
+            actual = actual,
+            "Some cached {} IDs did not resolve — treating as cache miss",
+            entity,
+        );
+        false
+    } else {
+        true
+    }
+}
+
 pub fn hash_query(query: &str, limit: i32, offset: i32) -> String {
     let mut hasher = Sha256::new();
     hasher.update(query.as_bytes());
@@ -34,13 +48,11 @@ pub fn hash_query(query: &str, limit: i32, offset: i32) -> String {
     hex::encode(hasher.finalize())
 }
 
-/// Repository for search cache operations.
 pub struct SearchCacheRepository;
 
 impl SearchCacheRepository {
     // ==================== Artist Search ====================
 
-    /// Get cached artist search results if not expired.
     pub async fn get_artist_search(
         pool: &DbPool,
         query: &str,
@@ -49,7 +61,7 @@ impl SearchCacheRepository {
         cache_ttl_seconds: i64,
     ) -> Result<Option<Vec<Artist>>> {
         let query_hash = hash_query(query, limit, offset);
-        let min_cached_at = Utc::now() - Duration::seconds(cache_ttl_seconds);
+        let min_cached_at = min_cached_at(cache_ttl_seconds)?;
         let mut conn = get_conn(pool).await?;
 
         let cache_row: Option<ArtistSearchCacheRow> = artist_search_cache::table
@@ -65,13 +77,21 @@ impl SearchCacheRepository {
             Some(row) => {
                 let artist_ids: Vec<Uuid> = row.artist_ids.into_iter().flatten().collect();
                 let artists = ArtistRepository::get_by_ids(pool, &artist_ids).await?;
-                Ok(Some(artists))
+                let by_id: HashMap<String, Artist> =
+                    artists.into_iter().map(|a| (a.id.clone(), a)).collect();
+                let ordered: Vec<Artist> = artist_ids
+                    .iter()
+                    .filter_map(|id| by_id.get(&id.to_string()).cloned())
+                    .collect();
+                if !all_ids_resolved("artist", artist_ids.len(), ordered.len()) {
+                    return Ok(None);
+                }
+                Ok(Some(ordered))
             }
             None => Ok(None),
         }
     }
 
-    /// Cache artist search results.
     pub async fn cache_artist_search(
         pool: &DbPool,
         query: &str,
@@ -79,10 +99,8 @@ impl SearchCacheRepository {
         offset: i32,
         artists: &[Artist],
     ) -> Result<()> {
-        // First upsert all artists
         ArtistRepository::upsert_many(pool, artists).await?;
 
-        // Then cache the search result
         let artist_ids: Vec<Uuid> = artists
             .iter()
             .filter_map(|a| Uuid::parse_str(&a.id).ok())
@@ -117,7 +135,6 @@ impl SearchCacheRepository {
 
     // ==================== Release Search ====================
 
-    /// Get cached release search results if not expired.
     pub async fn get_release_search(
         pool: &DbPool,
         query: &str,
@@ -126,7 +143,7 @@ impl SearchCacheRepository {
         cache_ttl_seconds: i64,
     ) -> Result<Option<Vec<Release>>> {
         let query_hash = hash_query(query, limit, offset);
-        let min_cached_at = Utc::now() - Duration::seconds(cache_ttl_seconds);
+        let min_cached_at = min_cached_at(cache_ttl_seconds)?;
         let mut conn = get_conn(pool).await?;
 
         let cache_row: Option<ReleaseSearchCacheRow> = release_search_cache::table
@@ -142,13 +159,21 @@ impl SearchCacheRepository {
             Some(row) => {
                 let release_ids: Vec<Uuid> = row.release_ids.into_iter().flatten().collect();
                 let releases = ReleaseRepository::get_by_ids(pool, &release_ids).await?;
-                Ok(Some(releases))
+                let by_id: HashMap<String, Release> =
+                    releases.into_iter().map(|r| (r.id.clone(), r)).collect();
+                let ordered: Vec<Release> = release_ids
+                    .iter()
+                    .filter_map(|id| by_id.get(&id.to_string()).cloned())
+                    .collect();
+                if !all_ids_resolved("release", release_ids.len(), ordered.len()) {
+                    return Ok(None);
+                }
+                Ok(Some(ordered))
             }
             None => Ok(None),
         }
     }
 
-    /// Cache release search results.
     pub async fn cache_release_search(
         pool: &DbPool,
         query: &str,
@@ -192,7 +217,6 @@ impl SearchCacheRepository {
 
     // ==================== Recording Search ====================
 
-    /// Get cached recording search results if not expired.
     pub async fn get_recording_search(
         pool: &DbPool,
         query: &str,
@@ -201,7 +225,7 @@ impl SearchCacheRepository {
         cache_ttl_seconds: i64,
     ) -> Result<Option<Vec<Recording>>> {
         let query_hash = hash_query(query, limit, offset);
-        let min_cached_at = Utc::now() - Duration::seconds(cache_ttl_seconds);
+        let min_cached_at = min_cached_at(cache_ttl_seconds)?;
         let mut conn = get_conn(pool).await?;
 
         let cache_row: Option<RecordingSearchCacheRow> = recording_search_cache::table
@@ -217,13 +241,21 @@ impl SearchCacheRepository {
             Some(row) => {
                 let recording_ids: Vec<Uuid> = row.recording_ids.into_iter().flatten().collect();
                 let recordings = RecordingRepository::get_by_ids(pool, &recording_ids).await?;
-                Ok(Some(recordings))
+                let by_id: HashMap<String, Recording> =
+                    recordings.into_iter().map(|r| (r.id.clone(), r)).collect();
+                let ordered: Vec<Recording> = recording_ids
+                    .iter()
+                    .filter_map(|id| by_id.get(&id.to_string()).cloned())
+                    .collect();
+                if !all_ids_resolved("recording", recording_ids.len(), ordered.len()) {
+                    return Ok(None);
+                }
+                Ok(Some(ordered))
             }
             None => Ok(None),
         }
     }
 
-    /// Cache recording search results.
     pub async fn cache_recording_search(
         pool: &DbPool,
         query: &str,
@@ -267,7 +299,6 @@ impl SearchCacheRepository {
 
     // ==================== Release Group Search ====================
 
-    /// Get cached release group search results if not expired.
     pub async fn get_release_group_search(
         pool: &DbPool,
         query: &str,
@@ -276,7 +307,7 @@ impl SearchCacheRepository {
         cache_ttl_seconds: i64,
     ) -> Result<Option<Vec<ReleaseGroup>>> {
         let query_hash = hash_query(query, limit, offset);
-        let min_cached_at = Utc::now() - Duration::seconds(cache_ttl_seconds);
+        let min_cached_at = min_cached_at(cache_ttl_seconds)?;
         let mut conn = get_conn(pool).await?;
 
         let cache_row: Option<ReleaseGroupSearchCacheRow> = release_group_search_cache::table
@@ -294,13 +325,23 @@ impl SearchCacheRepository {
                     row.release_group_ids.into_iter().flatten().collect();
                 let release_groups =
                     ReleaseGroupRepository::get_by_ids(pool, &release_group_ids).await?;
-                Ok(Some(release_groups))
+                let by_id: HashMap<String, ReleaseGroup> = release_groups
+                    .into_iter()
+                    .map(|rg| (rg.id.clone(), rg))
+                    .collect();
+                let ordered: Vec<ReleaseGroup> = release_group_ids
+                    .iter()
+                    .filter_map(|id| by_id.get(&id.to_string()).cloned())
+                    .collect();
+                if !all_ids_resolved("release_group", release_group_ids.len(), ordered.len()) {
+                    return Ok(None);
+                }
+                Ok(Some(ordered))
             }
             None => Ok(None),
         }
     }
 
-    /// Cache release group search results.
     pub async fn cache_release_group_search(
         pool: &DbPool,
         query: &str,
@@ -344,7 +385,6 @@ impl SearchCacheRepository {
 
     // ==================== Podcast Search ====================
 
-    /// Get cached podcast search results if not expired.
     pub async fn get_podcast_search(
         pool: &DbPool,
         query: &str,
@@ -353,7 +393,7 @@ impl SearchCacheRepository {
         cache_ttl_seconds: i64,
     ) -> Result<Option<Vec<Podcast>>> {
         let query_hash = hash_query(query, limit, offset);
-        let min_cached_at = Utc::now() - Duration::seconds(cache_ttl_seconds);
+        let min_cached_at = min_cached_at(cache_ttl_seconds)?;
         let mut conn = get_conn(pool).await?;
 
         let cache_row: Option<PodcastSearchCacheRow> = podcast_search_cache::table
@@ -369,13 +409,21 @@ impl SearchCacheRepository {
             Some(row) => {
                 let podcast_ids: Vec<i64> = row.podcast_ids.into_iter().flatten().collect();
                 let podcasts = PodcastRepository::get_by_ids(pool, &podcast_ids).await?;
-                Ok(Some(podcasts))
+                let by_id: HashMap<i64, Podcast> =
+                    podcasts.into_iter().map(|p| (p.id, p)).collect();
+                let ordered: Vec<Podcast> = podcast_ids
+                    .iter()
+                    .filter_map(|id| by_id.get(id).cloned())
+                    .collect();
+                if !all_ids_resolved("podcast", podcast_ids.len(), ordered.len()) {
+                    return Ok(None);
+                }
+                Ok(Some(ordered))
             }
             None => Ok(None),
         }
     }
 
-    /// Cache podcast search results.
     pub async fn cache_podcast_search(
         pool: &DbPool,
         query: &str,

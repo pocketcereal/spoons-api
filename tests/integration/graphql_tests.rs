@@ -1,7 +1,5 @@
-//! End-to-end GraphQL integration tests.
-//!
-//! These tests verify the full stack: GraphQL -> Repository -> Database.
-//! They use seeded data and do NOT make external API calls.
+//! Full-stack integration tests (GraphQL -> Repository -> Database).
+//! Uses seeded data, no external API calls.
 
 use async_graphql::{EmptyMutation, EmptySubscription, Schema};
 use spoons_api::db::repositories::{
@@ -9,6 +7,7 @@ use spoons_api::db::repositories::{
 };
 use spoons_api::graphql::{AppContext, QueryRoot};
 use spoons_api::musicbrainz::MusicBrainzClient;
+use spoons_api::services::MusicService;
 
 use crate::common::{
     TestDb, nevermind_release, nevermind_release_group, nirvana_artist, ok_computer_release,
@@ -23,11 +22,8 @@ async fn setup_graphql_test() -> (TestDb, Schema<QueryRoot, EmptyMutation, Empty
     let client = MusicBrainzClient::new("https://musicbrainz.org/ws/2")
         .expect("Failed to create MusicBrainz client");
     let app_context = AppContext {
-        db_pool: test_db.pool.clone(),
-        musicbrainz_client: client,
-        audius_client: None,
-        podcast_index_client: None,
-        cache_ttl_seconds: 86400, // Long TTL for tests
+        music: MusicService::new(test_db.pool.clone(), client, None, 86400),
+        podcast: None,
     };
 
     let schema = Schema::build(QueryRoot::default(), EmptyMutation, EmptySubscription)
@@ -41,13 +37,11 @@ async fn setup_graphql_test() -> (TestDb, Schema<QueryRoot, EmptyMutation, Empty
 async fn test_graphql_artist_query_from_cache() {
     let (test_db, schema) = setup_graphql_test().await;
 
-    // Seed the database with Nirvana
     let nirvana = nirvana_artist();
     ArtistRepository::upsert(&test_db.pool, &nirvana)
         .await
         .expect("Failed to seed Nirvana");
 
-    // Query via GraphQL
     let query = format!(
         r#"
         query {{
@@ -68,11 +62,7 @@ async fn test_graphql_artist_query_from_cache() {
 
     let _result = schema.execute(&query).await;
 
-    // This will fail because cache-first pattern will try to hit MusicBrainz API
-    // when not in cache. For a true integration test, we'd need to mock the client
-    // or ensure the data is in cache first.
-
-    // For now, let's verify the repository-level caching works
+    // GraphQL query won't return cache data without mock client, so verify at repo level
     let cached = ArtistRepository::get_cached(&test_db.pool, &nirvana.id, 86400)
         .await
         .expect("Failed to get cached artist");
@@ -110,7 +100,6 @@ async fn test_seeded_data_retrieval() {
     let test_db = TestDb::new().await;
     test_db.truncate_tables().await;
 
-    // Seed all test data
     let nirvana = nirvana_artist();
     let radiohead = radiohead_artist();
     let nevermind = nevermind_release();
@@ -120,7 +109,6 @@ async fn test_seeded_data_retrieval() {
     let nevermind_rg = nevermind_release_group();
     let ok_computer_rg = ok_computer_release_group();
 
-    // Insert all data
     ArtistRepository::upsert(&test_db.pool, &nirvana)
         .await
         .unwrap();
@@ -146,7 +134,6 @@ async fn test_seeded_data_retrieval() {
         .await
         .unwrap();
 
-    // Verify all data can be retrieved
     let artists = ArtistRepository::get_by_ids(
         &test_db.pool,
         &[
@@ -193,29 +180,73 @@ async fn test_seeded_data_retrieval() {
 }
 
 #[tokio::test]
+async fn test_podcast_query_returns_feature_disabled_when_not_configured() {
+    let (_test_db, schema) = setup_graphql_test().await;
+
+    let query = r#"
+        query {
+            searchPodcasts(query: "test") {
+                id
+                title
+            }
+        }
+    "#;
+
+    let result = schema.execute(query).await;
+    assert!(!result.errors.is_empty(), "Should return an error");
+
+    let error = &result.errors[0];
+    let extensions = error.extensions.as_ref().expect("Should have extensions");
+    assert_eq!(
+        extensions.get("code"),
+        Some(&async_graphql::Value::String("FEATURE_DISABLED".to_string())),
+    );
+}
+
+#[tokio::test]
+async fn test_podcast_episode_query_returns_feature_disabled_when_not_configured() {
+    let (_test_db, schema) = setup_graphql_test().await;
+
+    let query = r#"
+        query {
+            podcast(id: "podcastindex:12345") {
+                id
+                title
+            }
+        }
+    "#;
+
+    let result = schema.execute(query).await;
+    assert!(!result.errors.is_empty(), "Should return an error");
+
+    let error = &result.errors[0];
+    let extensions = error.extensions.as_ref().expect("Should have extensions");
+    assert_eq!(
+        extensions.get("code"),
+        Some(&async_graphql::Value::String("FEATURE_DISABLED".to_string())),
+    );
+}
+
+#[tokio::test]
 async fn test_cache_hit_returns_correct_data() {
     let test_db = TestDb::new().await;
     test_db.truncate_tables().await;
 
-    // Seed Nirvana
     let nirvana = nirvana_artist();
     ArtistRepository::upsert(&test_db.pool, &nirvana)
         .await
         .expect("Failed to seed Nirvana");
 
-    // First retrieval - should be from cache
     let first = ArtistRepository::get_cached(&test_db.pool, &nirvana.id, 86400)
         .await
         .expect("First retrieval failed")
         .expect("Should find artist");
 
-    // Second retrieval - also from cache
     let second = ArtistRepository::get_cached(&test_db.pool, &nirvana.id, 86400)
         .await
         .expect("Second retrieval failed")
         .expect("Should find artist");
 
-    // Both should return the same data
     assert_eq!(first.id, second.id);
     assert_eq!(first.name, second.name);
     assert_eq!(first.country, second.country);

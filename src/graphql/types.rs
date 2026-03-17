@@ -463,7 +463,7 @@ impl AudiusTrack {
 
 impl From<crate::musicbrainz::Artist> for MusicBrainzArtist {
     fn from(artist: crate::musicbrainz::Artist) -> Self {
-        let prefixed_id = DataSource::MusicBrainz.prefix_id(&artist.id);
+        let prefixed_id = DataSource::MusicBrainz.format_id(&artist.id);
         Self {
             id: prefixed_id,
             source_id: artist.id,
@@ -489,7 +489,7 @@ impl From<crate::musicbrainz::Artist> for MusicBrainzArtist {
 
 impl From<crate::musicbrainz::Recording> for MusicBrainzTrack {
     fn from(recording: crate::musicbrainz::Recording) -> Self {
-        let prefixed_id = DataSource::MusicBrainz.prefix_id(&recording.id);
+        let prefixed_id = DataSource::MusicBrainz.format_id(&recording.id);
         let artist_name = format_artist_credits(&recording.artist_credit);
         Self {
             id: prefixed_id,
@@ -521,7 +521,7 @@ fn format_artist_credits(credits: &[crate::musicbrainz::ArtistCredit]) -> Option
 
 impl From<crate::audius::AudiusUser> for AudiusArtist {
     fn from(user: crate::audius::AudiusUser) -> Self {
-        let prefixed_id = DataSource::Audius.prefix_id(&user.id);
+        let prefixed_id = DataSource::Audius.format_id(&user.id);
         Self {
             id: prefixed_id,
             source_id: user.id,
@@ -542,7 +542,7 @@ impl From<crate::audius::AudiusUser> for AudiusArtist {
 
 impl From<crate::audius::AudiusTrack> for AudiusTrack {
     fn from(track: crate::audius::AudiusTrack) -> Self {
-        let prefixed_id = DataSource::Audius.prefix_id(&track.id);
+        let prefixed_id = DataSource::Audius.format_id(&track.id);
         Self {
             id: prefixed_id,
             source_id: track.id,

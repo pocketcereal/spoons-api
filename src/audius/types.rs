@@ -1,53 +1,38 @@
-//! Audius API response types.
-//!
 //! Based on the Audius API documentation:
 //! https://audiusproject.github.io/api-docs/
 
 use serde::{Deserialize, Serialize};
 
-/// Wrapper for Audius API responses.
-/// All Audius responses wrap the actual data in a `data` field.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AudiusResponse<T> {
     pub data: T,
 }
 
-/// User (artist) entity from Audius.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AudiusUser {
-    /// Audius user ID.
     pub id: String,
-    /// User handle (username).
     pub handle: String,
-    /// Display name.
     pub name: String,
-    /// User bio/description.
     pub bio: Option<String>,
-    /// User location.
     pub location: Option<String>,
-    /// Whether the user is verified.
+    #[serde(default)]
     pub is_verified: bool,
-    /// Whether the user is deactivated.
+    #[serde(default)]
     pub is_deactivated: bool,
-    /// Number of followers.
+    #[serde(default)]
     pub follower_count: i64,
-    /// Number of users being followed.
+    #[serde(default)]
     pub followee_count: i64,
-    /// Number of tracks uploaded.
+    #[serde(default)]
     pub track_count: i64,
-    /// Number of playlists created.
+    #[serde(default)]
     pub playlist_count: i64,
-    /// Number of reposts.
+    #[serde(default)]
     pub repost_count: i64,
-    /// Profile picture URLs.
     pub profile_picture: Option<MultiSizeImage>,
-    /// Cover photo URLs.
     pub cover_photo: Option<CoverPhoto>,
-    /// Ethereum wallet address.
     pub erc_wallet: Option<String>,
-    /// Solana wallet address.
     pub spl_wallet: Option<String>,
-    /// Total AUDIO token balance.
     pub total_audio_balance: Option<i64>,
 }
 
@@ -63,7 +48,6 @@ pub struct MultiSizeImage {
     pub large: Option<String>,
 }
 
-/// Cover photo with multiple sizes.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CoverPhoto {
     #[serde(rename = "640x")]
@@ -72,42 +56,30 @@ pub struct CoverPhoto {
     pub large: Option<String>,
 }
 
-/// Track entity from Audius.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AudiusTrack {
-    /// Audius track ID.
     pub id: String,
-    /// Track title.
     pub title: String,
-    /// Track description.
     pub description: Option<String>,
-    /// Genre classification.
     pub genre: Option<String>,
-    /// Mood classification.
     pub mood: Option<String>,
-    /// Track tags.
     pub tags: Option<String>,
-    /// Duration in seconds.
+    #[serde(default)]
     pub duration: i64,
-    /// Number of plays.
+    #[serde(default)]
     pub play_count: i64,
-    /// Number of favorites.
+    #[serde(default)]
     pub favorite_count: i64,
-    /// Number of reposts.
+    #[serde(default)]
     pub repost_count: i64,
-    /// Release date.
     pub release_date: Option<String>,
-    /// Whether the track is streamable.
+    #[serde(default)]
     pub is_streamable: bool,
-    /// Artwork URLs.
     pub artwork: Option<MultiSizeImage>,
-    /// Track permalink (URL path).
     pub permalink: Option<String>,
-    /// The user who uploaded the track.
     pub user: Option<AudiusUser>,
 }
 
-/// Host discovery response from api.audius.co.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HostDiscoveryResponse {
     pub data: Vec<String>,

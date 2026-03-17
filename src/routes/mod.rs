@@ -1,14 +1,17 @@
-//! API route definitions.
-
 pub mod graphql;
 pub mod health;
 
 use axum::Router;
+use jsonwebtoken::jwk::JwkSet;
 
 use crate::auth::{AuthConfig, auth_layer};
 use crate::graphql::AppSchema;
 
-pub fn build_router(auth_config: AuthConfig, schema: AppSchema) -> Router {
+pub async fn build_router(
+    auth_config: AuthConfig,
+    initial_jwks: Option<JwkSet>,
+    schema: AppSchema,
+) -> Router {
     let mut public_routes = Router::new().merge(health::routes());
 
     if !auth_config.enabled {
@@ -18,7 +21,7 @@ pub fn build_router(auth_config: AuthConfig, schema: AppSchema) -> Router {
 
     let protected_routes = Router::new()
         .merge(graphql::graphql_route(schema))
-        .layer(auth_layer(auth_config));
+        .layer(auth_layer(auth_config, initial_jwks).await);
 
     Router::new().merge(public_routes).merge(protected_routes)
 }
@@ -29,9 +32,10 @@ mod tests {
     use crate::db::{DbConfig, create_pool};
     use crate::graphql::{AppContext, build_schema};
     use crate::musicbrainz::MusicBrainzClient;
+    use crate::services::MusicService;
 
-    #[test]
-    fn test_router_builds() {
+    #[tokio::test]
+    async fn test_router_builds() {
         let auth_config = AuthConfig::default();
         let client = MusicBrainzClient::new("https://musicbrainz.org/ws/2").unwrap();
 
@@ -48,14 +52,11 @@ mod tests {
         let pool = create_pool(&db_config).unwrap();
 
         let app_context = AppContext {
-            db_pool: pool,
-            musicbrainz_client: client,
-            audius_client: None,
-            podcast_index_client: None,
-            cache_ttl_seconds: 3600,
+            music: MusicService::new(pool, client, None, 3600),
+            podcast: None,
         };
 
         let schema = build_schema(app_context);
-        let _ = build_router(auth_config, schema);
+        let _ = build_router(auth_config, None, schema).await;
     }
 }

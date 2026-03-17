@@ -1,28 +1,24 @@
-//! Recording repository for database operations.
-
-use chrono::{Duration, Utc};
+use chrono::Utc;
 use diesel::prelude::*;
 use diesel_async::RunQueryDsl;
 use uuid::Uuid;
 
 use crate::db::models::{NewRecordingRow, RecordingRow};
 use crate::db::schema::recordings;
-use crate::db::{DbPool, db_error, get_conn, parse_uuid, validate_batch_size};
+use crate::db::{DbPool, db_error, get_conn, min_cached_at, parse_uuid, validate_batch_size};
 use crate::error::{AppError, Result};
 use crate::musicbrainz::Recording;
 
-/// Repository for recording database operations.
 pub struct RecordingRepository;
 
 impl RecordingRepository {
-    /// Get a cached recording by ID if not expired.
     pub async fn get_cached(
         pool: &DbPool,
         id: &str,
         cache_ttl_seconds: i64,
     ) -> Result<Option<Recording>> {
         let uuid = parse_uuid(id)?;
-        let min_cached_at = Utc::now() - Duration::seconds(cache_ttl_seconds);
+        let min_cached_at = min_cached_at(cache_ttl_seconds)?;
         let mut conn = get_conn(pool).await?;
 
         let result: Option<RecordingRow> = recordings::table
@@ -37,7 +33,6 @@ impl RecordingRepository {
         Ok(result.map(Into::into))
     }
 
-    /// Get a recording by ID (regardless of cache expiry).
     #[allow(dead_code)] // Used in integration tests
     pub async fn get_by_id(pool: &DbPool, id: &str) -> Result<Option<Recording>> {
         let uuid = parse_uuid(id)?;
@@ -54,10 +49,6 @@ impl RecordingRepository {
         Ok(result.map(Into::into))
     }
 
-    /// Get multiple recordings by their IDs.
-    ///
-    /// # Errors
-    /// Returns an error if the batch size exceeds the maximum allowed (100).
     pub async fn get_by_ids(pool: &DbPool, ids: &[Uuid]) -> Result<Vec<Recording>> {
         if ids.is_empty() {
             return Ok(vec![]);
@@ -76,12 +67,11 @@ impl RecordingRepository {
         Ok(results.into_iter().map(Into::into).collect())
     }
 
-    /// Upsert a recording (insert or update).
     pub async fn upsert(pool: &DbPool, recording: &Recording) -> Result<()> {
         let mut conn = get_conn(pool).await?;
 
         let new_recording = NewRecordingRow::try_from(recording)
-            .map_err(|e| AppError::Database(format!("Invalid recording UUID: {}", e)))?;
+            .map_err(|e| AppError::Database(format!("Invalid recording data: {}", e)))?;
 
         diesel::insert_into(recordings::table)
             .values(&new_recording)
@@ -103,11 +93,11 @@ impl RecordingRepository {
         Ok(())
     }
 
-    /// Upsert multiple recordings using batch insert.
     pub async fn upsert_many(pool: &DbPool, recordings_list: &[Recording]) -> Result<()> {
         if recordings_list.is_empty() {
             return Ok(());
         }
+        validate_batch_size(recordings_list.len())?;
 
         let new_recordings: Vec<NewRecordingRow> = recordings_list
             .iter()

@@ -30,11 +30,7 @@ impl DataSource {
         }
     }
 
-    /// Creates a prefixed ID in the format "source:id".
-    ///
-    /// This provides a consistent ID format across all data sources,
-    /// allowing disambiguation when combining results from multiple sources.
-    pub fn prefix_id(&self, id: &str) -> String {
+    pub fn format_id(&self, id: &str) -> String {
         format!("{}:{}", self.as_str(), id)
     }
 }

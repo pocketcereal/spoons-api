@@ -1,25 +1,19 @@
-//! Database connection pool management.
-
 use diesel_async::AsyncPgConnection;
 use diesel_async::pooled_connection::AsyncDieselConnectionManager;
 use diesel_async::pooled_connection::deadpool::Pool;
 
+use crate::config::DatabaseConfig;
 use crate::error::{AppError, Result};
 
-/// Type alias for the database connection pool.
 pub type DbPool = Pool<AsyncPgConnection>;
 
-/// Database configuration.
 #[derive(Debug, Clone)]
 pub struct DbConfig {
-    /// Database connection URL.
     pub url: String,
-    /// Maximum number of connections in the pool.
     pub max_connections: usize,
 }
 
 impl DbConfig {
-    /// Create config from environment variables.
     pub fn from_env() -> Result<Self> {
         let url = std::env::var("SPOONS_DATABASE_URL")
             .or_else(|_| std::env::var("DATABASE_URL"))
@@ -27,10 +21,15 @@ impl DbConfig {
                 AppError::Config("DATABASE_URL or SPOONS_DATABASE_URL must be set".to_string())
             })?;
 
-        let max_connections = std::env::var("SPOONS_DB_MAX_CONNECTIONS")
-            .ok()
-            .and_then(|s| s.parse().ok())
-            .unwrap_or(10);
+        let max_connections = match std::env::var("SPOONS_DB_MAX_CONNECTIONS") {
+            Ok(s) => s.parse().map_err(|_| {
+                AppError::Config(format!(
+                    "SPOONS_DB_MAX_CONNECTIONS must be a valid number, got: '{}'",
+                    s
+                ))
+            })?,
+            Err(_) => 10,
+        };
 
         Ok(Self {
             url,
@@ -38,7 +37,6 @@ impl DbConfig {
         })
     }
 
-    /// Create config with a specific URL.
     pub fn with_url(url: impl Into<String>) -> Self {
         Self {
             url: url.into(),
@@ -47,7 +45,25 @@ impl DbConfig {
     }
 }
 
-/// Create a new database connection pool.
+impl TryFrom<&DatabaseConfig> for DbConfig {
+    type Error = AppError;
+
+    /// Resolves URL from config, then SPOONS_DATABASE_URL, then DATABASE_URL env vars.
+    fn try_from(config: &DatabaseConfig) -> Result<Self> {
+        let url = config
+            .url
+            .clone()
+            .or_else(|| std::env::var("SPOONS_DATABASE_URL").ok())
+            .or_else(|| std::env::var("DATABASE_URL").ok())
+            .ok_or_else(|| AppError::Config("DATABASE_URL must be set".to_string()))?;
+
+        Ok(Self {
+            url,
+            max_connections: config.max_connections,
+        })
+    }
+}
+
 pub fn create_pool(config: &DbConfig) -> Result<DbPool> {
     let manager = AsyncDieselConnectionManager::<AsyncPgConnection>::new(&config.url);
 

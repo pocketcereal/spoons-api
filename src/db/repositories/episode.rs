@@ -1,20 +1,16 @@
-//! Episode repository for database operations.
-
-use chrono::{Duration, Utc};
+use chrono::Utc;
 use diesel::prelude::*;
 use diesel_async::RunQueryDsl;
 
 use crate::db::models::{EpisodeRow, NewEpisodeRow};
 use crate::db::schema::episodes;
-use crate::db::{DbPool, db_error, get_conn};
+use crate::db::{DbPool, db_error, get_conn, min_cached_at, validate_batch_size};
 use crate::error::Result;
 use crate::podcast::Episode;
 
-/// Repository for episode database operations.
 pub struct EpisodeRepository;
 
 impl EpisodeRepository {
-    /// Get an episode by ID (regardless of cache expiry).
     pub async fn get_by_id(pool: &DbPool, id: i64) -> Result<Option<Episode>> {
         let mut conn = get_conn(pool).await?;
 
@@ -29,7 +25,6 @@ impl EpisodeRepository {
         Ok(result.map(Into::into))
     }
 
-    /// Get episodes by podcast ID.
     pub async fn get_by_podcast_id(
         pool: &DbPool,
         podcast_id: i64,
@@ -49,9 +44,34 @@ impl EpisodeRepository {
         Ok(results.into_iter().map(Into::into).collect())
     }
 
-    /// Get a cached episode by ID if not expired.
+    pub async fn get_cached_by_podcast_id(
+        pool: &DbPool,
+        podcast_id: i64,
+        limit: i32,
+        ttl_seconds: i64,
+    ) -> Result<Option<Vec<Episode>>> {
+        let min_cached_at = min_cached_at(ttl_seconds)?;
+        let mut conn = get_conn(pool).await?;
+
+        let results: Vec<EpisodeRow> = episodes::table
+            .filter(episodes::podcast_id.eq(podcast_id))
+            .filter(episodes::cached_at.gt(min_cached_at))
+            .order(episodes::published_at.desc().nulls_last())
+            .limit(limit.into())
+            .select(EpisodeRow::as_select())
+            .load(&mut conn)
+            .await
+            .map_err(db_error("Failed to get cached episodes by podcast ID"))?;
+
+        if results.is_empty() {
+            return Ok(None);
+        }
+
+        Ok(Some(results.into_iter().map(Into::into).collect()))
+    }
+
     pub async fn get_cached(pool: &DbPool, id: i64, ttl_seconds: i64) -> Result<Option<Episode>> {
-        let min_cached_at = Utc::now() - Duration::seconds(ttl_seconds);
+        let min_cached_at = min_cached_at(ttl_seconds)?;
         let mut conn = get_conn(pool).await?;
 
         let result = episodes::table
@@ -66,7 +86,6 @@ impl EpisodeRepository {
         Ok(result.map(Into::into))
     }
 
-    /// Upsert an episode (insert or update).
     pub async fn upsert(pool: &DbPool, episode: &Episode) -> Result<()> {
         let mut conn = get_conn(pool).await?;
         let new_episode = NewEpisodeRow::from(episode);
@@ -99,11 +118,11 @@ impl EpisodeRepository {
         Ok(())
     }
 
-    /// Upsert multiple episodes using batch operations.
     pub async fn upsert_many(pool: &DbPool, episode_list: &[Episode]) -> Result<()> {
         if episode_list.is_empty() {
             return Ok(());
         }
+        validate_batch_size(episode_list.len())?;
 
         let mut conn = get_conn(pool).await?;
 

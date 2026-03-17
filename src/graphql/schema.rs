@@ -1,5 +1,3 @@
-//! GraphQL schema definition and query handlers.
-
 use async_graphql::{
     Context, EmptyMutation, EmptySubscription, ErrorExtensions, MergedObject, Object, Schema,
 };
@@ -7,27 +5,21 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::audius::AudiusClient;
-use crate::db::{DbPool, MusicRepository};
 use crate::domain::DataSource;
 use crate::error::AppError;
-use crate::musicbrainz::MusicBrainzClient;
-use crate::podcast_index::PodcastIndexClient;
+use crate::services::{MusicService, PodcastService};
 
 use super::podcast::PodcastQuery;
 use super::types::{Artist, Track};
 
-/// Result type alias for GraphQL resolvers that converts AppError to async_graphql::Error
 type GqlResult<T> = std::result::Result<T, async_graphql::Error>;
 
 pub type AppSchema = Schema<QueryRoot, EmptyMutation, EmptySubscription>;
 
 #[derive(Clone)]
 pub struct AppContext {
-    pub db_pool: DbPool,
-    pub musicbrainz_client: MusicBrainzClient,
-    pub audius_client: Option<AudiusClient>,
-    pub podcast_index_client: Option<PodcastIndexClient>,
-    pub cache_ttl_seconds: i64,
+    pub music: MusicService,
+    pub podcast: Option<PodcastService>,
 }
 
 pub fn build_schema(app_context: AppContext) -> AppSchema {
@@ -45,11 +37,8 @@ pub(crate) fn get_app_context<'a>(
     })
 }
 
-/// Maximum allowed length for search query strings.
 const MAX_QUERY_LENGTH: usize = 500;
 
-/// Validates and normalizes a search query string.
-/// Trims whitespace, enforces max length, and rejects empty strings.
 pub(crate) fn validate_query(query: &str) -> GqlResult<String> {
     let trimmed = query.trim();
     if trimmed.is_empty() {
@@ -65,27 +54,38 @@ pub(crate) fn validate_query(query: &str) -> GqlResult<String> {
     Ok(trimmed.to_string())
 }
 
-/// Maximum allowed limit for search queries.
-const MAX_SEARCH_LIMIT: i32 = 100;
+const MAX_ID_LENGTH: usize = 64;
 
-/// Maximum allowed offset for search queries.
+pub(crate) fn validate_id(id: &str) -> GqlResult<String> {
+    let trimmed = id.trim();
+    if trimmed.is_empty() {
+        return Err(AppError::InvalidInput("ID cannot be empty".to_string()).extend());
+    }
+    if trimmed.len() > MAX_ID_LENGTH {
+        return Err(AppError::InvalidInput(format!(
+            "ID too long (max {} characters)",
+            MAX_ID_LENGTH
+        ))
+        .extend());
+    }
+    Ok(trimmed.to_string())
+}
+
+const MAX_SEARCH_LIMIT: i32 = 100;
 const MAX_SEARCH_OFFSET: i32 = 10000;
 
-/// Clamps the limit to the maximum allowed value.
 pub(crate) fn clamp_limit(limit: i32) -> i32 {
     limit.clamp(1, MAX_SEARCH_LIMIT)
 }
 
-/// Clamps the offset to valid bounds (0 to MAX_SEARCH_OFFSET).
 fn clamp_offset(offset: i32) -> i32 {
     offset.clamp(0, MAX_SEARCH_OFFSET)
 }
 
-/// Returns the Audius client or an error if not configured.
 fn require_audius_client(app_ctx: &AppContext) -> GqlResult<&AudiusClient> {
     app_ctx
-        .audius_client
-        .as_ref()
+        .music
+        .audius_client()
         .ok_or_else(|| {
             AppError::FeatureDisabled(
                 "Audius is not configured. Set audius in config.yaml.".to_string(),
@@ -94,10 +94,9 @@ fn require_audius_client(app_ctx: &AppContext) -> GqlResult<&AudiusClient> {
         })
 }
 
-/// Returns the PodcastIndex client or an error if not configured.
-pub(crate) fn require_podcast_index_client(app_ctx: &AppContext) -> GqlResult<&PodcastIndexClient> {
+pub(crate) fn require_podcast_service(app_ctx: &AppContext) -> GqlResult<&PodcastService> {
     app_ctx
-        .podcast_index_client
+        .podcast
         .as_ref()
         .ok_or_else(|| {
             AppError::FeatureDisabled(
@@ -107,7 +106,6 @@ pub(crate) fn require_podcast_index_client(app_ctx: &AppContext) -> GqlResult<&P
         })
 }
 
-/// Timeout for individual source queries when searching in parallel.
 const SOURCE_QUERY_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Searches multiple sources in parallel, combining results and logging failures.
@@ -183,18 +181,16 @@ impl MusicQuery {
     }
 
     async fn artist(&self, ctx: &Context<'_>, id: String, source: DataSource) -> GqlResult<Artist> {
+        let id = validate_id(&id)?;
         let app_ctx = get_app_context(ctx)?;
 
         match source {
             DataSource::MusicBrainz => {
-                let artist = MusicRepository::get_artist(
-                    &app_ctx.db_pool,
-                    &app_ctx.musicbrainz_client,
-                    &id,
-                    app_ctx.cache_ttl_seconds,
-                )
-                .await
-                .map_err(|e| e.extend())?;
+                let artist = app_ctx
+                    .music
+                    .get_artist(&id)
+                    .await
+                    .map_err(|e| e.extend())?;
                 Ok(Artist::MusicBrainz(artist.into()))
             }
             DataSource::Audius => {
@@ -228,18 +224,16 @@ impl MusicQuery {
     }
 
     async fn track(&self, ctx: &Context<'_>, id: String, source: DataSource) -> GqlResult<Track> {
+        let id = validate_id(&id)?;
         let app_ctx = get_app_context(ctx)?;
 
         match source {
             DataSource::MusicBrainz => {
-                let recording = MusicRepository::get_recording(
-                    &app_ctx.db_pool,
-                    &app_ctx.musicbrainz_client,
-                    &id,
-                    app_ctx.cache_ttl_seconds,
-                )
-                .await
-                .map_err(|e| e.extend())?;
+                let recording = app_ctx
+                    .music
+                    .get_recording(&id)
+                    .await
+                    .map_err(|e| e.extend())?;
                 Ok(Track::MusicBrainz(recording.into()))
             }
             DataSource::Audius => {
@@ -260,16 +254,7 @@ async fn search_musicbrainz_artists(
     limit: i32,
     offset: i32,
 ) -> Result<Vec<Artist>, AppError> {
-    let artists = MusicRepository::search_artists(
-        &app_ctx.db_pool,
-        &app_ctx.musicbrainz_client,
-        query,
-        limit,
-        offset,
-        app_ctx.cache_ttl_seconds,
-    )
-    .await?;
-
+    let artists = app_ctx.music.search_artists(query, limit, offset).await?;
     Ok(artists
         .into_iter()
         .map(|a| Artist::MusicBrainz(a.into()))
@@ -282,7 +267,7 @@ async fn search_audius_artists(
     limit: i32,
     offset: i32,
 ) -> Result<Vec<Artist>, AppError> {
-    let client = match &app_ctx.audius_client {
+    let client = match app_ctx.music.audius_client() {
         Some(c) => c,
         None => return Ok(Vec::new()),
     };
@@ -300,16 +285,10 @@ async fn search_musicbrainz_tracks(
     limit: i32,
     offset: i32,
 ) -> Result<Vec<Track>, AppError> {
-    let recordings = MusicRepository::search_recordings(
-        &app_ctx.db_pool,
-        &app_ctx.musicbrainz_client,
-        query,
-        limit,
-        offset,
-        app_ctx.cache_ttl_seconds,
-    )
-    .await?;
-
+    let recordings = app_ctx
+        .music
+        .search_recordings(query, limit, offset)
+        .await?;
     Ok(recordings
         .into_iter()
         .map(|r| Track::MusicBrainz(r.into()))
@@ -322,7 +301,7 @@ async fn search_audius_tracks(
     limit: i32,
     offset: i32,
 ) -> Result<Vec<Track>, AppError> {
-    let client = match &app_ctx.audius_client {
+    let client = match app_ctx.music.audius_client() {
         Some(c) => c,
         None => return Ok(Vec::new()),
     };
@@ -338,6 +317,7 @@ async fn search_audius_tracks(
 mod tests {
     use super::*;
     use crate::db::{DbConfig, create_pool};
+    use crate::musicbrainz::MusicBrainzClient;
 
     #[test]
     fn test_schema_builds() {
@@ -357,11 +337,8 @@ mod tests {
         let pool = create_pool(&db_config).expect("Failed to create database pool");
 
         let app_context = AppContext {
-            db_pool: pool,
-            musicbrainz_client: client,
-            audius_client: None,
-            podcast_index_client: None,
-            cache_ttl_seconds: 3600,
+            music: MusicService::new(pool, client, None, 3600),
+            podcast: None,
         };
 
         let _schema = build_schema(app_context);

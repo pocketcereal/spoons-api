@@ -58,13 +58,8 @@ tasks:
       - cargo clean
 
   dev:
-    desc: Run development server
-    cmds:
-      - lsof -ti:4000 | xargs kill -9 2>/dev/null || true
-      - cargo run -- start --config config.yaml
-
-  watch:
     desc: Run development server with auto-reload
+    aliases: [watch]
     cmds:
       - lsof -ti:4000 | xargs kill -9 2>/dev/null || true
       - cargo watch -x 'run -- start --config config.yaml'
@@ -166,6 +161,158 @@ tasks:
     cmds:
       - task: test
       - task: test:integration
+
+  # Auth utilities
+  jwt:
+    desc: Get a fresh Supabase JWT for the test user
+    silent: true
+    requires:
+      vars: []
+    preconditions:
+      - sh: '[ -n "$SPOONS_SUPABASE_URL" ]'
+        msg: "SPOONS_SUPABASE_URL not set"
+      - sh: '[ -n "$SPOONS_SUPABASE_EMAIL" ]'
+        msg: "SPOONS_SUPABASE_EMAIL not set"
+      - sh: '[ -n "$SPOONS_SUPABASE_PASSWORD" ]'
+        msg: "SPOONS_SUPABASE_PASSWORD not set"
+      - sh: '[ -n "$SUPABASE_PUBLISHABLE_DEFAULT_KEY" ]'
+        msg: "SUPABASE_PUBLISHABLE_DEFAULT_KEY not set"
+      - sh: command -v jq
+        msg: "jq is required but not installed"
+    cmds:
+      - |
+        RESPONSE=$(curl -sf -X POST \
+          "${SPOONS_SUPABASE_URL}/auth/v1/token?grant_type=password" \
+          -H "apikey: ${SUPABASE_PUBLISHABLE_DEFAULT_KEY}" \
+          -H "Content-Type: application/json" \
+          -d "{\"email\":\"${SPOONS_SUPABASE_EMAIL}\",\"password\":\"${SPOONS_SUPABASE_PASSWORD}\"}")
+        TOKEN=$(echo "$RESPONSE" | jq -r '.access_token // empty')
+        if [ -z "$TOKEN" ]; then
+          echo "Failed to get JWT: $(echo "$RESPONSE" | jq -r '.error_description // .msg // "unknown error"')" >&2
+          exit 1
+        fi
+        echo "$TOKEN"
+
+  jwt:decode:
+    desc: Get a fresh JWT and pretty-print its claims
+    silent: true
+    cmds:
+      - |
+        TOKEN=$(task jwt)
+        if [ $? -ne 0 ]; then exit 1; fi
+        echo "$TOKEN" | cut -d. -f2 | tr '_-' '/+' | base64 -d 2>/dev/null | jq .
+
+  test:auth:
+    desc: Run authenticated API smoke tests and write results to tests/results/
+    silent: true
+    vars:
+      PORT: '{{.PORT | default "4000"}}'
+      RESULTS_DIR: tests/results
+    cmds:
+      - mkdir -p {{.RESULTS_DIR}}
+      - |
+        TOKEN=$(task jwt)
+        if [ $? -ne 0 ]; then exit 1; fi
+
+        RESULTS_FILE="{{.RESULTS_DIR}}/auth-smoke.json"
+        PASS=0
+        FAIL=0
+        RESULTS="[]"
+
+        run_query() {
+          local NAME="$1"
+          local QUERY="$2"
+          RESPONSE=$(curl -s -w "\n%{http_code}" "http://localhost:{{.PORT}}/graphql" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$QUERY")
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+          HAS_ERRORS=$(echo "$BODY" | jq -r 'if .errors then "true" else "false" end' 2>/dev/null || echo "true")
+
+          if [ "$HTTP_CODE" = "200" ] && [ "$HAS_ERRORS" = "false" ]; then
+            STATUS="pass"
+            PASS=$((PASS + 1))
+            echo "  ✓ $NAME"
+          else
+            STATUS="fail"
+            FAIL=$((FAIL + 1))
+            ERROR=$(echo "$BODY" | jq -r '.errors[0].message // "HTTP '"$HTTP_CODE"'"' 2>/dev/null)
+            echo "  ✗ $NAME — $ERROR"
+          fi
+
+          RESULTS=$(echo "$RESULTS" | jq \
+            --arg name "$NAME" \
+            --arg status "$STATUS" \
+            --argjson response "$BODY" \
+            --argjson code "$HTTP_CODE" \
+            '. + [{"name": $name, "status": $status, "http_code": $code, "response": $response}]')
+        }
+
+        echo "Running API smoke tests..."
+        echo ""
+
+        run_query "version" \
+          '{"query":"{ version }"}'
+
+        run_query "search_artists_musicbrainz" \
+          '{"query":"{ searchArtists(query: \"Radiohead\", source: MUSIC_BRAINZ, limit: 3) { __typename ... on MusicBrainzArtist { id name source sourceId country artistType } } }"}'
+
+        run_query "search_tracks_musicbrainz" \
+          '{"query":"{ searchTracks(query: \"Paranoid Android\", source: MUSIC_BRAINZ, limit: 3) { __typename ... on MusicBrainzTrack { id title source sourceId artistName durationMs } } }"}'
+
+        run_query "search_artists_audius" \
+          '{"query":"{ searchArtists(query: \"deadmau5\", source: AUDIUS, limit: 3) { __typename ... on AudiusArtist { id name source sourceId handle isVerified } } }"}'
+
+        run_query "search_tracks_audius" \
+          '{"query":"{ searchTracks(query: \"Strobe\", source: AUDIUS, limit: 3) { __typename ... on AudiusTrack { id title source sourceId artistName genre } } }"}'
+
+        run_query "search_artists_multi_source" \
+          '{"query":"{ searchArtists(query: \"deadmau5\", limit: 5) { __typename ... on MusicBrainzArtist { name source } ... on AudiusArtist { name source handle } } }"}'
+
+        run_query "search_podcasts" \
+          '{"query":"{ searchPodcasts(query: \"technology\", limit: 3) { ... on PodcastIndexPodcast { id title author source } } }"}'
+
+        run_query "search_podcasts_by_title" \
+          '{"query":"{ searchPodcastsByTitle(title: \"Serial\", limit: 3) { ... on PodcastIndexPodcast { id title author } } }"}'
+
+        run_query "trending_podcasts" \
+          '{"query":"{ trendingPodcasts(limit: 3) { ... on PodcastIndexPodcast { id title author } } }"}'
+
+        run_query "podcast_categories" \
+          '{"query":"{ podcastCategories { ... on Category { id name } } }"}'
+
+        run_query "get_artist_by_id" \
+          '{"query":"{ artist(id: \"a74b1b7f-71a5-4011-9441-d0b5e4122711\", source: MUSIC_BRAINZ) { ... on MusicBrainzArtist { id name country artistType } } }"}'
+
+        run_query "get_podcast_by_id" \
+          '{"query":"{ podcast(id: \"podcastindex:522889\") { ... on PodcastIndexPodcast { id title author feedUrl } } }"}'
+
+        run_query "get_episodes" \
+          '{"query":"{ episodes(podcastId: \"podcastindex:522889\", limit: 3) { ... on PodcastIndexEpisode { id title podcastId durationSeconds } } }"}'
+
+        run_query "random_episodes" \
+          '{"query":"{ randomEpisodes(limit: 3, language: \"en\") { ... on PodcastIndexEpisode { id title podcastId } } }"}'
+
+        run_query "search_tracks_multi_source" \
+          '{"query":"{ searchTracks(query: \"Around the World\", limit: 3) { __typename ... on MusicBrainzTrack { id title artistName } ... on AudiusTrack { id title artistName } } }"}'
+
+        TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+        SUMMARY=$(jq -n \
+          --arg ts "$TIMESTAMP" \
+          --argjson pass "$PASS" \
+          --argjson fail "$FAIL" \
+          --argjson results "$RESULTS" \
+          '{"timestamp": $ts, "passed": $pass, "failed": $fail, "total": ($pass + $fail), "results": $results}')
+
+        echo "$SUMMARY" | jq . > "$RESULTS_FILE"
+
+        echo ""
+        echo "Results: $PASS passed, $FAIL failed (written to $RESULTS_FILE)"
+
+        if [ "$FAIL" -gt 0 ]; then
+          exit 1
+        fi
 
   # Smoke tests for external API connectivity
   test:smoke:

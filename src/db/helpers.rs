@@ -1,17 +1,23 @@
-//! Database helper functions to reduce code duplication.
-
+use chrono::{DateTime, Duration, Utc};
 use std::future::Future;
 use uuid::Uuid;
 
 use crate::db::DbPool;
 use crate::error::{AppError, Result};
-
-/// Parse a string ID to UUID, returning a database error on failure.
-pub fn parse_uuid(id: &str) -> Result<Uuid> {
-    Uuid::parse_str(id).map_err(|e| AppError::Database(format!("Invalid UUID '{}': {}", id, e)))
+pub fn min_cached_at(cache_ttl_seconds: i64) -> Result<DateTime<Utc>> {
+    let duration = Duration::try_seconds(cache_ttl_seconds).ok_or_else(|| {
+        AppError::Config(format!(
+            "Invalid cache TTL value: {} seconds",
+            cache_ttl_seconds
+        ))
+    })?;
+    Ok(Utc::now() - duration)
 }
 
-/// Get a connection from the pool, returning a database error on failure.
+pub fn parse_uuid(id: &str) -> Result<Uuid> {
+    Uuid::parse_str(id).map_err(|e| AppError::InvalidInput(format!("Invalid UUID '{}': {}", id, e)))
+}
+
 pub async fn get_conn(
     pool: &DbPool,
 ) -> Result<
@@ -26,11 +32,8 @@ pub async fn get_conn(
         .map_err(|e| AppError::Database(format!("Failed to get connection: {}", e)))
 }
 
-/// Maximum batch size for bulk operations.
 pub const MAX_BATCH_SIZE: usize = 100;
 
-/// Validate that a batch size doesn't exceed the maximum.
-/// Returns an error if the batch is too large, or Ok(()) if within limits.
 pub fn validate_batch_size(len: usize) -> Result<()> {
     if len > MAX_BATCH_SIZE {
         return Err(AppError::Server(format!(
@@ -41,20 +44,12 @@ pub fn validate_batch_size(len: usize) -> Result<()> {
     Ok(())
 }
 
-/// Create a database error with context message.
-///
-/// This helper reduces boilerplate for the common pattern of:
-/// `.map_err(|e| AppError::Database(format!("context: {}", e)))`
+/// Reduces boilerplate for `.map_err(|e| AppError::Database(format!("context: {}", e)))`.
 pub fn db_error(context: &str) -> impl FnOnce(diesel::result::Error) -> AppError + '_ {
     move |e| AppError::Database(format!("{}: {}", context, e))
 }
 
-/// Spawn a fire-and-forget cache operation with error logging.
-///
-/// This helper reduces boilerplate for the common pattern of:
-/// 1. Clone data needed for async closure
-/// 2. Spawn task to cache data
-/// 3. Log any errors but don't propagate them
+/// Fire-and-forget cache write: spawns a task, logs errors, never propagates.
 pub fn spawn_cache_task<F, Fut>(entity_name: &'static str, cache_fn: F)
 where
     F: FnOnce() -> Fut + Send + 'static,

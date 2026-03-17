@@ -1,5 +1,3 @@
-//! GraphQL route handlers.
-
 use async_graphql::http::GraphiQLSource;
 use async_graphql_axum::{GraphQLRequest, GraphQLResponse};
 use axum::{
@@ -35,6 +33,7 @@ mod tests {
     use crate::db::{DbConfig, create_pool};
     use crate::graphql::{AppContext, build_schema};
     use crate::musicbrainz::MusicBrainzClient;
+    use crate::services::MusicService;
 
     #[test]
     fn test_routes_build() {
@@ -54,11 +53,8 @@ mod tests {
         let pool = create_pool(&db_config).expect("Failed to create database pool");
 
         let app_context = AppContext {
-            db_pool: pool,
-            musicbrainz_client: client,
-            audius_client: None,
-            podcast_index_client: None,
-            cache_ttl_seconds: 3600,
+            music: MusicService::new(pool, client, None, 3600),
+            podcast: None,
         };
 
         let schema = build_schema(app_context);
