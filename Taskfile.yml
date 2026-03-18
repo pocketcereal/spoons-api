@@ -332,6 +332,12 @@ tasks:
         run_query "random_artists_musicbrainz" \
           '{"query":"{ randomArtists(source: MUSIC_BRAINZ, limit: 3) { __typename ... on MusicBrainzArtist { id name source country } } }"}'
 
+        run_query "search_artists_jamendo" \
+          '{"query":"{ searchArtists(source: JAMENDO, query: \"electronic\", limit: 3) { __typename ... on JamendoArtist { id name source } } }"}'
+
+        run_query "search_tracks_jamendo" \
+          '{"query":"{ searchTracks(source: JAMENDO, query: \"ambient\", limit: 3) { __typename ... on JamendoTrack { id title source audioUrl } } }"}'
+
         run_query "unified_search_all" \
           '{"query":"{ search(query: \"pride\") { music { artists { ... on MusicBrainzArtist { id name } } tracks { ... on MusicBrainzTrack { id title } } } podcasts { podcasts { ... on PodcastIndexPodcast { id title } } } audiobooks { audiobooks { ... on LibriVoxAudiobook { id title } } } } }"}'
 

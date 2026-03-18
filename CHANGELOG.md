@@ -15,6 +15,8 @@ All notable changes to this project will be documented in this file.
 - Added Terraform + Docker Compose deployment for GCP single-VM setup (Caddy TLS, Redis, Supabase Postgres)
 - Added unified `search` and `random` GraphQL queries for cross-domain discovery with parallel fan-out and partial failure handling
 - Added `ContentDomain` enum (`MUSIC`, `PODCASTS`, `AUDIOBOOKS`) for domain filtering
+- Added source provider abstraction with `MusicProvider`, `PodcastProvider`, `AudiobookProvider` traits and generic `fan_out_search` for automatic parallel source queries
+- Added Jamendo integration as a new music source with search, browse, and streaming URLs (`JAMENDO` source filter)
 - Added GET handler to GraphQL endpoint for introspection queries
 - Added `db_error()` helper function to reduce database error mapping boilerplate
 

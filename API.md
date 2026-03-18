@@ -35,6 +35,8 @@ All entities use source-prefixed IDs: `<source>:<id>`
 | Music (Track) | `musicbrainz` | `musicbrainz:f1e4c5b8-3a6d-4e2b-9f1c-8d7e6a5b4c3d` |
 | Music (Artist) | `audius` | `audius:abc123` |
 | Music (Track) | `audius` | `audius:xyz789` |
+| Music (Artist) | `jamendo` | `jamendo:12345` |
+| Music (Track) | `jamendo` | `jamendo:67890` |
 | Podcast | `podcastindex` | `podcastindex:920666` |
 | Episode | `podcastindex` | `podcastindex:12345` |
 | Audiobook | `librivox` | `librivox:128` |
@@ -46,13 +48,13 @@ All entities use source-prefixed IDs: `<source>:<id>`
 
 ### searchArtists
 
-Search for artists across MusicBrainz and Audius.
+Search for artists across MusicBrainz, Audius, and Jamendo.
 
 ```graphql
 query {
   searchArtists(
     query: "Radiohead"
-    source: MUSIC_BRAINZ  # optional: MUSIC_BRAINZ | AUDIUS
+    source: MUSIC_BRAINZ  # optional: MUSIC_BRAINZ | AUDIUS | JAMENDO
     limit: 25              # optional, default 25, max 100
     offset: 0              # optional, default 0, max 10000
   ) {
@@ -89,7 +91,16 @@ query {
 }
 ```
 
-When `source` is omitted, both sources are queried in parallel with a 10s timeout per source. Results are combined.
+When `source` is omitted, all configured sources are queried in parallel with a 10s timeout per source. Results are combined.
+
+**Jamendo** tracks include streaming URLs via `audioUrl`:
+```graphql
+query {
+  searchTracks(query: "ambient", source: JAMENDO, limit: 5) {
+    ... on JamendoTrack { id title source audioUrl albumName }
+  }
+}
+```
 
 ### artist
 
