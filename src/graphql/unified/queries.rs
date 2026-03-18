@@ -299,3 +299,65 @@ async fn random_audiobooks(
         Err(_) => Err(AppError::Internal(anyhow::anyhow!("Audiobook random timed out"))),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_resolve_domains_none_returns_all() {
+        let domains = resolve_domains(None);
+        assert_eq!(
+            domains,
+            vec![
+                ContentDomain::Music,
+                ContentDomain::Podcasts,
+                ContentDomain::Audiobooks
+            ]
+        );
+    }
+
+    #[test]
+    fn test_resolve_domains_some_returns_specified() {
+        let domains = resolve_domains(Some(vec![ContentDomain::Music]));
+        assert_eq!(domains, vec![ContentDomain::Music]);
+    }
+
+    #[test]
+    fn test_resolve_domains_empty_vec_returns_empty() {
+        let domains = resolve_domains(Some(vec![]));
+        assert!(domains.is_empty());
+    }
+
+    #[test]
+    fn test_set_or_warn_ok_some_sets_value() {
+        let mut field: Option<i32> = None;
+        set_or_warn(&mut field, Ok(Some(42)), "TEST");
+        assert_eq!(field, Some(42));
+    }
+
+    #[test]
+    fn test_set_or_warn_ok_none_clears_value() {
+        let mut field: Option<i32> = Some(42);
+        set_or_warn(&mut field, Ok(None), "TEST");
+        assert_eq!(field, None);
+    }
+
+    #[test]
+    fn test_set_or_warn_err_leaves_field_none() {
+        let mut field: Option<i32> = None;
+        let err = AppError::Internal(anyhow::anyhow!("boom"));
+        set_or_warn(&mut field, Err(err), "TEST");
+        assert_eq!(field, None);
+    }
+
+    #[test]
+    fn test_gql_to_app_error_preserves_message() {
+        let gql_err = async_graphql::Error::new("something went wrong");
+        let app_err = gql_to_app_error(gql_err);
+        match app_err {
+            AppError::Internal(e) => assert!(e.to_string().contains("something went wrong")),
+            other => panic!("Expected Internal, got {:?}", other),
+        }
+    }
+}
