@@ -300,7 +300,7 @@ tasks:
           '{"query":"{ randomEpisodes(limit: 3, language: \"en\") { ... on PodcastIndexEpisode { id title podcastId } } }"}'
 
         run_query "search_audiobooks" \
-          '{"query":"{ searchAudiobooks(query: \"pride\", limit: 3) { ... on LibriVoxAudiobook { id title source } } }"}'
+          '{"query":"{ searchAudiobooks(query: \"pride and prejudice\", limit: 3) { ... on LibriVoxAudiobook { id title source } } }"}'
 
         run_query "get_audiobook_by_id" \
           '{"query":"{ audiobook(id: \"librivox:128\") { ... on LibriVoxAudiobook { id title authors { firstName lastName } } } }"}'

@@ -7,7 +7,7 @@ use serde::Serialize;
 
 #[derive(Debug, Serialize)]
 struct ChapterParams {
-    id: i64,
+    project_id: i64,
     format: &'static str,
     extended: i32,
 }
@@ -17,7 +17,7 @@ pub async fn get_chapters(
     audiobook_id: i64,
 ) -> Result<Vec<Chapter>> {
     let params = ChapterParams {
-        id: audiobook_id,
+        project_id: audiobook_id,
         format: "json",
         extended: 1,
     };
@@ -40,13 +40,13 @@ mod tests {
     #[test]
     fn test_chapter_params_serialization() {
         let params = ChapterParams {
-            id: 128,
+            project_id: 128,
             format: "json",
             extended: 1,
         };
 
         let json = serde_json::to_value(&params).unwrap();
-        assert_eq!(json["id"], 128);
+        assert_eq!(json["project_id"], 128);
         assert_eq!(json["format"], "json");
         assert_eq!(json["extended"], 1);
     }

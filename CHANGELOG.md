@@ -26,6 +26,7 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 - Fixed `is_retryable_error` in HTTP client - removed `is_request()` check which incorrectly retried client errors (4xx)
 - Improved error message when HTTP response body read fails (now includes error details instead of empty string)
+- Fixed LibriVox chapters endpoint using `id` (section ID) instead of `project_id` (audiobook ID), which returned wrong data or deserialization errors
 
 ### Changed
 - Refactored search_cache.rs to use new `db_error()` helper, reducing code duplication
