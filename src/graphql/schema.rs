@@ -138,6 +138,7 @@ where
     match source {
         Some(DataSource::MusicBrainz) => mb_search.await.map_err(|e| e.extend()),
         Some(DataSource::Audius) => audius_search.await.map_err(|e| e.extend()),
+        Some(DataSource::Jamendo) => Err(AppError::FeatureDisabled("Jamendo".into()).extend()),
         None => {
             let (mb_results, audius_results) = tokio::join!(
                 tokio::time::timeout(SOURCE_QUERY_TIMEOUT, mb_search),
@@ -214,6 +215,7 @@ impl MusicQuery {
                 let user = client.get_user(&id).await.map_err(|e| e.extend())?;
                 Ok(Artist::Audius(user.into()))
             }
+            DataSource::Jamendo => Err(AppError::FeatureDisabled("Jamendo".into()).extend()),
         }
     }
 
@@ -293,6 +295,7 @@ impl MusicQuery {
                 let track = client.get_track(&id).await.map_err(|e| e.extend())?;
                 Ok(Track::Audius(track.into()))
             }
+            DataSource::Jamendo => Err(AppError::FeatureDisabled("Jamendo".into()).extend()),
         }
     }
 }

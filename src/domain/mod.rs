@@ -1,7 +1,9 @@
-//! Domain types and interfaces.
-//!
-//! This module contains shared domain types that abstract over multiple data sources.
-
+mod audiobook;
+mod music;
+mod podcast;
 mod source;
 
+pub use audiobook::AudiobookProvider;
+pub use music::MusicProvider;
+pub use podcast::PodcastProvider;
 pub use source::DataSource;

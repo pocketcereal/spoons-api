@@ -10,6 +10,8 @@ pub enum DataSource {
     MusicBrainz,
     /// Audius decentralized music streaming platform.
     Audius,
+    /// Jamendo open music platform.
+    Jamendo,
 }
 
 impl std::fmt::Display for DataSource {
@@ -17,6 +19,7 @@ impl std::fmt::Display for DataSource {
         match self {
             DataSource::MusicBrainz => write!(f, "musicbrainz"),
             DataSource::Audius => write!(f, "audius"),
+            DataSource::Jamendo => write!(f, "jamendo"),
         }
     }
 }
@@ -27,6 +30,7 @@ impl DataSource {
         match self {
             DataSource::MusicBrainz => "musicbrainz",
             DataSource::Audius => "audius",
+            DataSource::Jamendo => "jamendo",
         }
     }
 
