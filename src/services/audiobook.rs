@@ -27,6 +27,20 @@ impl AudiobookService {
         &self.client
     }
 
+    pub async fn get_audiobooks_page(&self, limit: i32, offset: i32) -> Result<Vec<Audiobook>> {
+        let results = self.client.get_audiobooks_page(limit, offset).await?;
+
+        if !results.is_empty() {
+            let pool = self.pool.clone();
+            let to_cache = results.clone();
+            spawn_cache_task("random audiobooks", move || async move {
+                AudiobookRepository::upsert_many(&pool, &to_cache).await
+            });
+        }
+
+        Ok(results)
+    }
+
     pub async fn get_audiobook(&self, id: i64) -> Result<Option<Audiobook>> {
         let pool = self.pool.clone();
         let cache_key = id.to_string();

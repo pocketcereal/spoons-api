@@ -40,7 +40,7 @@ diesel::table! {
         query_hash -> Text,
         query_text -> Text,
         audiobook_ids -> Array<Nullable<Int8>>,
-        total_count -> Int4,
+        total_count -> Int8,
         cached_at -> Timestamptz,
     }
 }
@@ -109,7 +109,7 @@ diesel::table! {
         query_hash -> Text,
         query_text -> Text,
         podcast_ids -> Array<Nullable<Int8>>,
-        total_count -> Int4,
+        total_count -> Int8,
         cached_at -> Timestamptz,
     }
 }

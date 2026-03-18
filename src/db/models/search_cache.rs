@@ -110,7 +110,7 @@ pub struct AudiobookSearchCacheRow {
     pub query_hash: String,
     pub query_text: String,
     pub audiobook_ids: Vec<Option<i64>>,
-    pub total_count: i32,
+    pub total_count: i64,
     pub cached_at: DateTime<Utc>,
 }
 
@@ -121,7 +121,7 @@ pub struct NewAudiobookSearchCacheRow {
     pub query_hash: String,
     pub query_text: String,
     pub audiobook_ids: Vec<i64>,
-    pub total_count: i32,
+    pub total_count: i64,
 }
 
 /// Database row for podcast_search_cache table.
@@ -133,7 +133,7 @@ pub struct PodcastSearchCacheRow {
     pub query_hash: String,
     pub query_text: String,
     pub podcast_ids: Vec<Option<i64>>,
-    pub total_count: i32,
+    pub total_count: i64,
     pub cached_at: DateTime<Utc>,
 }
 
@@ -144,5 +144,5 @@ pub struct NewPodcastSearchCacheRow {
     pub query_hash: String,
     pub query_text: String,
     pub podcast_ids: Vec<i64>,
-    pub total_count: i32,
+    pub total_count: i64,
 }

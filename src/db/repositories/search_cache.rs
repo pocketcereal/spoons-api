@@ -442,7 +442,7 @@ impl SearchCacheRepository {
             query_hash: query_hash.clone(),
             query_text: query.to_string(),
             audiobook_ids,
-            total_count: audiobooks.len() as i32,
+            total_count: audiobooks.len() as i64,
         };
 
         let mut conn = get_conn(pool).await?;
@@ -521,7 +521,7 @@ impl SearchCacheRepository {
             query_hash: query_hash.clone(),
             query_text: query.to_string(),
             podcast_ids,
-            total_count: podcasts.len() as i32,
+            total_count: podcasts.len() as i64,
         };
 
         let mut conn = get_conn(pool).await?;
