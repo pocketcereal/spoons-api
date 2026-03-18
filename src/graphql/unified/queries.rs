@@ -17,7 +17,12 @@ use super::types::*;
 const DOMAIN_TIMEOUT: Duration = Duration::from_secs(10);
 
 fn gql_to_app_error(e: async_graphql::Error) -> AppError {
-    AppError::Internal(anyhow::anyhow!("{}", e.message))
+    let detail = e
+        .source
+        .as_ref()
+        .and_then(|s| s.downcast_ref::<AppError>())
+        .map(|s| format!(": {}", s));
+    AppError::Internal(anyhow::anyhow!("{}{}", e.message, detail.unwrap_or_default()))
 }
 
 fn resolve_domains(domains: Option<Vec<ContentDomain>>) -> Vec<ContentDomain> {
@@ -109,34 +114,27 @@ async fn search_music(
         return Ok(None);
     }
 
-    let result = tokio::time::timeout(DOMAIN_TIMEOUT, async {
-        let (artists, tracks) = tokio::join!(
-            search_sources(
-                None,
-                search_musicbrainz_artists(app_ctx, query, limit, 0),
-                search_audius_artists(app_ctx, query, limit, 0),
-                "artist",
-            ),
-            search_sources(
-                None,
-                search_musicbrainz_tracks(app_ctx, query, limit, 0),
-                search_audius_tracks(app_ctx, query, limit, 0),
-                "track",
-            ),
-        );
+    // No outer timeout — search_sources already wraps each sub-source
+    // (MusicBrainz, Audius) in SOURCE_QUERY_TIMEOUT individually.
+    let (artists, tracks) = tokio::join!(
+        search_sources(
+            None,
+            search_musicbrainz_artists(app_ctx, query, limit, 0),
+            search_audius_artists(app_ctx, query, limit, 0),
+            "artist",
+        ),
+        search_sources(
+            None,
+            search_musicbrainz_tracks(app_ctx, query, limit, 0),
+            search_audius_tracks(app_ctx, query, limit, 0),
+            "track",
+        ),
+    );
 
-        Ok::<_, AppError>(MusicSearchResults {
-            artists: artists.map_err(gql_to_app_error)?,
-            tracks: tracks.map_err(gql_to_app_error)?,
-        })
-    })
-    .await;
-
-    match result {
-        Ok(Ok(r)) => Ok(Some(r)),
-        Ok(Err(e)) => Err(e),
-        Err(_) => Err(AppError::Internal(anyhow::anyhow!("Music search timed out"))),
-    }
+    Ok(Some(MusicSearchResults {
+        artists: artists.map_err(gql_to_app_error)?,
+        tracks: tracks.map_err(gql_to_app_error)?,
+    }))
 }
 
 async fn search_podcasts(
@@ -216,34 +214,26 @@ async fn random_music(
         return Ok(None);
     }
 
-    let result = tokio::time::timeout(DOMAIN_TIMEOUT, async {
-        let (artists, tracks) = tokio::join!(
-            search_sources(
-                None,
-                random_musicbrainz_artists(app_ctx, limit),
-                random_audius_artists(app_ctx, limit),
-                "random artist",
-            ),
-            search_sources(
-                None,
-                random_musicbrainz_tracks(app_ctx, limit),
-                random_audius_tracks(app_ctx, limit),
-                "random track",
-            ),
-        );
+    // No outer timeout — search_sources already wraps each sub-source individually.
+    let (artists, tracks) = tokio::join!(
+        search_sources(
+            None,
+            random_musicbrainz_artists(app_ctx, limit),
+            random_audius_artists(app_ctx, limit),
+            "random artist",
+        ),
+        search_sources(
+            None,
+            random_musicbrainz_tracks(app_ctx, limit),
+            random_audius_tracks(app_ctx, limit),
+            "random track",
+        ),
+    );
 
-        Ok::<_, AppError>(MusicRandomResults {
-            artists: artists.map_err(gql_to_app_error)?,
-            tracks: tracks.map_err(gql_to_app_error)?,
-        })
-    })
-    .await;
-
-    match result {
-        Ok(Ok(r)) => Ok(Some(r)),
-        Ok(Err(e)) => Err(e),
-        Err(_) => Err(AppError::Internal(anyhow::anyhow!("Music random timed out"))),
-    }
+    Ok(Some(MusicRandomResults {
+        artists: artists.map_err(gql_to_app_error)?,
+        tracks: tracks.map_err(gql_to_app_error)?,
+    }))
 }
 
 async fn random_podcasts(
