@@ -130,6 +130,22 @@ impl Default for PodcastIndexConfig {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default)]
+pub struct LibriVoxConfig {
+    pub enabled: bool,
+    pub base_url: String,
+}
+
+impl Default for LibriVoxConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            base_url: "https://librivox.org/api/feed".to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
 pub struct CacheConfig {
     pub enabled: bool,
     pub max_entries: usize,
@@ -162,6 +178,7 @@ pub struct AppConfig {
     pub audius: AudiusConfig,
     pub database: DatabaseConfig,
     pub podcast_index: PodcastIndexConfig,
+    pub librivox: LibriVoxConfig,
     pub cache: CacheConfig,
 }
 

@@ -8,7 +8,7 @@ use std::time::Duration;
 use crate::audius::AudiusClient;
 use crate::domain::DataSource;
 use crate::error::AppError;
-use crate::services::{MusicService, PodcastService};
+use crate::services::{AudiobookService, MusicService, PodcastService};
 
 use super::podcast::PodcastQuery;
 use super::types::{Artist, Track};
@@ -21,6 +21,7 @@ pub type AppSchema = Schema<QueryRoot, EmptyMutation, EmptySubscription>;
 pub struct AppContext {
     pub music: MusicService,
     pub podcast: Option<PodcastService>,
+    pub audiobook: Option<AudiobookService>,
 }
 
 pub fn build_schema(app_context: AppContext) -> AppSchema {
@@ -102,6 +103,18 @@ pub(crate) fn require_podcast_service(app_ctx: &AppContext) -> GqlResult<&Podcas
         .ok_or_else(|| {
             AppError::FeatureDisabled(
                 "PodcastIndex is not configured. Set podcast_index in config.yaml.".to_string(),
+            )
+            .extend()
+        })
+}
+
+pub(crate) fn require_audiobook_service(app_ctx: &AppContext) -> GqlResult<&AudiobookService> {
+    app_ctx
+        .audiobook
+        .as_ref()
+        .ok_or_else(|| {
+            AppError::FeatureDisabled(
+                "LibriVox is not configured. Set librivox in config.yaml.".to_string(),
             )
             .extend()
         })
@@ -520,6 +533,7 @@ mod tests {
         let app_context = AppContext {
             music: MusicService::new(pool, client, None, 3600),
             podcast: None,
+            audiobook: None,
         };
 
         let _schema = build_schema(app_context);

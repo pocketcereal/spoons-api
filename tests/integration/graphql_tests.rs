@@ -24,6 +24,7 @@ async fn setup_graphql_test() -> (TestDb, Schema<QueryRoot, EmptyMutation, Empty
     let app_context = AppContext {
         music: MusicService::new(test_db.pool.clone(), client, None, 86400),
         podcast: None,
+        audiobook: None,
     };
 
     let schema = Schema::build(QueryRoot::default(), EmptyMutation, EmptySubscription)

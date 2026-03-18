@@ -55,6 +55,7 @@ mod tests {
         let app_context = AppContext {
             music: MusicService::new(pool, client, None, 3600),
             podcast: None,
+            audiobook: None,
         };
 
         let schema = build_schema(app_context);

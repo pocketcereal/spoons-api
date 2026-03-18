@@ -8,10 +8,11 @@ use crate::config::AppConfig;
 use crate::db::{DbConfig, create_pool};
 use crate::error::{AppError, Result};
 use crate::graphql::{AppContext, build_schema};
+use crate::librivox::LibriVoxClient;
 use crate::musicbrainz::MusicBrainzClient;
 use crate::podcast_index::PodcastIndexClient;
 use crate::routes;
-use crate::services::{MusicService, PodcastService};
+use crate::services::{AudiobookService, MusicService, PodcastService};
 
 pub async fn run(config: &AppConfig) -> Result<()> {
     let auth_config = AuthConfig::from_env();
@@ -85,6 +86,26 @@ pub async fn run(config: &AppConfig) -> Result<()> {
         config.database.cache_ttl_seconds,
     );
 
+    let audiobook = if config.librivox.enabled {
+        match LibriVoxClient::new(&config.librivox.base_url) {
+            Ok(client) => {
+                tracing::info!(base_url = %config.librivox.base_url, "LibriVox client initialized");
+                Some(AudiobookService::new(
+                    db_pool.clone(),
+                    client,
+                    config.database.cache_ttl_seconds,
+                ))
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "Failed to initialize LibriVox client, audiobook features will be disabled");
+                None
+            }
+        }
+    } else {
+        tracing::info!("LibriVox integration disabled");
+        None
+    };
+
     let podcast = if config.podcast_index.enabled {
         match (
             &config.podcast_index.api_key,
@@ -120,7 +141,11 @@ pub async fn run(config: &AppConfig) -> Result<()> {
         None
     };
 
-    let app_context = AppContext { music, podcast };
+    let app_context = AppContext {
+        music,
+        podcast,
+        audiobook,
+    };
 
     let schema = build_schema(app_context);
     tracing::info!("GraphQL schema initialized");

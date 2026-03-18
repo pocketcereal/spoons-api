@@ -24,6 +24,11 @@ podcast_index:
   api_key: ${PODCAST_INDEX_API_KEY}  # Your PodcastIndex API key
   api_secret: ${PODCAST_INDEX_API_SECRET}  # Your PodcastIndex API secret
 
+# LibriVox audiobook API configuration
+# Free public API, no authentication required
+librivox:
+  enabled: true  # Set to false to disable audiobook features
+
 # In-memory cache configuration
 cache:
   enabled: true  # Set to false to disable in-memory caching
