@@ -4,6 +4,7 @@ use crate::error::AppError;
 use crate::graphql::{clamp_limit, get_app_context, require_podcast_service, validate_query};
 use crate::podcast::PodcastSource as DomainPodcastSource;
 
+use super::podcast_types::PodcastSource;
 use super::{Category, Episode, Podcast};
 #[derive(Default)]
 pub struct PodcastQuery;
@@ -16,7 +17,9 @@ impl PodcastQuery {
         ctx: &Context<'_>,
         query: String,
         #[graphql(default = 20)] limit: i32,
+        source: Option<PodcastSource>,
     ) -> Result<Vec<Podcast>> {
+        let _ = source;
         let query = validate_query(&query)?;
         let limit = clamp_limit(limit);
         let app_ctx = get_app_context(ctx)?;
@@ -36,7 +39,9 @@ impl PodcastQuery {
         ctx: &Context<'_>,
         title: String,
         #[graphql(default = 20)] limit: i32,
+        source: Option<PodcastSource>,
     ) -> Result<Vec<Podcast>> {
+        let _ = source;
         let title = validate_query(&title)?;
         let limit = clamp_limit(limit);
         let app_ctx = get_app_context(ctx)?;
@@ -56,7 +61,9 @@ impl PodcastQuery {
         ctx: &Context<'_>,
         #[graphql(default = 20)] limit: i32,
         categories: Option<Vec<i32>>,
+        source: Option<PodcastSource>,
     ) -> Result<Vec<Podcast>> {
+        let _ = source;
         let limit = clamp_limit(limit);
         let app_ctx = get_app_context(ctx)?;
         let service = require_podcast_service(app_ctx)?;
@@ -166,7 +173,9 @@ impl PodcastQuery {
         #[graphql(default = 10)] limit: i32,
         language: Option<String>,
         categories: Option<Vec<i32>>,
+        source: Option<PodcastSource>,
     ) -> Result<Vec<Episode>> {
+        let _ = source;
         let limit = clamp_limit(limit);
         let app_ctx = get_app_context(ctx)?;
         let service = require_podcast_service(app_ctx)?;
