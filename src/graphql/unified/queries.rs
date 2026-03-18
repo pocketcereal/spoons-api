@@ -19,6 +19,18 @@ fn resolve_domains(domains: Option<Vec<ContentDomain>>) -> Vec<ContentDomain> {
     })
 }
 
+fn domain_providers<'a, T: ?Sized>(
+    providers: &'a [Arc<T>],
+    domains: &[ContentDomain],
+    domain: ContentDomain,
+) -> &'a [Arc<T>] {
+    if domains.contains(&domain) {
+        providers
+    } else {
+        &[]
+    }
+}
+
 fn set_or_warn<T>(
     field: &mut Option<T>,
     result: std::result::Result<Option<T>, AppError>,
@@ -47,26 +59,10 @@ impl UnifiedQuery {
         let app_ctx = get_app_context(ctx)?;
         let domains = resolve_domains(domains);
 
-        let music_providers = if domains.contains(&ContentDomain::Music) {
-            &app_ctx.music_providers[..]
-        } else {
-            &[]
-        };
-        let podcast_providers = if domains.contains(&ContentDomain::Podcasts) {
-            &app_ctx.podcast_providers[..]
-        } else {
-            &[]
-        };
-        let audiobook_providers = if domains.contains(&ContentDomain::Audiobooks) {
-            &app_ctx.audiobook_providers[..]
-        } else {
-            &[]
-        };
-
         let (music, podcasts, audiobooks) = tokio::join!(
-            search_music(music_providers, &query, limit),
-            search_podcasts(podcast_providers, &query, limit),
-            search_audiobooks(audiobook_providers, &query, limit),
+            search_music(domain_providers(&app_ctx.music_providers, &domains, ContentDomain::Music), &query, limit),
+            search_podcasts(domain_providers(&app_ctx.podcast_providers, &domains, ContentDomain::Podcasts), &query, limit),
+            search_audiobooks(domain_providers(&app_ctx.audiobook_providers, &domains, ContentDomain::Audiobooks), &query, limit),
         );
 
         let mut results = SearchResults::default();
@@ -86,26 +82,10 @@ impl UnifiedQuery {
         let app_ctx = get_app_context(ctx)?;
         let domains = resolve_domains(domains);
 
-        let music_providers = if domains.contains(&ContentDomain::Music) {
-            &app_ctx.music_providers[..]
-        } else {
-            &[]
-        };
-        let podcast_providers = if domains.contains(&ContentDomain::Podcasts) {
-            &app_ctx.podcast_providers[..]
-        } else {
-            &[]
-        };
-        let audiobook_providers = if domains.contains(&ContentDomain::Audiobooks) {
-            &app_ctx.audiobook_providers[..]
-        } else {
-            &[]
-        };
-
         let (music, podcasts, audiobooks) = tokio::join!(
-            random_music(music_providers, limit),
-            random_podcasts(podcast_providers, limit),
-            random_audiobooks(audiobook_providers, limit),
+            random_music(domain_providers(&app_ctx.music_providers, &domains, ContentDomain::Music), limit),
+            random_podcasts(domain_providers(&app_ctx.podcast_providers, &domains, ContentDomain::Podcasts), limit),
+            random_audiobooks(domain_providers(&app_ctx.audiobook_providers, &domains, ContentDomain::Audiobooks), limit),
         );
 
         let mut results = RandomResults::default();
@@ -218,6 +198,22 @@ async fn random_audiobooks(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_domain_providers_returns_providers_when_domain_present() {
+        let providers: Vec<Arc<String>> = vec![Arc::new("a".into())];
+        let domains = vec![ContentDomain::Music];
+        let result = domain_providers(&providers, &domains, ContentDomain::Music);
+        assert_eq!(result.len(), 1);
+    }
+
+    #[test]
+    fn test_domain_providers_returns_empty_when_domain_absent() {
+        let providers: Vec<Arc<String>> = vec![Arc::new("a".into())];
+        let domains = vec![ContentDomain::Podcasts];
+        let result = domain_providers(&providers, &domains, ContentDomain::Music);
+        assert!(result.is_empty());
+    }
 
     #[test]
     fn test_resolve_domains_none_returns_all() {
