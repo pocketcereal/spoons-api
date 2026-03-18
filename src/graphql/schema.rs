@@ -122,10 +122,10 @@ pub(crate) fn require_audiobook_service(app_ctx: &AppContext) -> GqlResult<&Audi
         })
 }
 
-const SOURCE_QUERY_TIMEOUT: Duration = Duration::from_secs(10);
+pub(crate) const SOURCE_QUERY_TIMEOUT: Duration = Duration::from_secs(10);
 
 /// Searches multiple sources in parallel, combining results and logging failures.
-async fn search_sources<T, MbFut, AudiusFut>(
+pub(crate) async fn search_sources<T, MbFut, AudiusFut>(
     source: Option<DataSource>,
     mb_search: MbFut,
     audius_search: AudiusFut,
@@ -300,7 +300,7 @@ impl MusicQuery {
 #[derive(MergedObject, Default)]
 pub struct QueryRoot(MusicQuery, PodcastQuery, AudiobookQuery, UnifiedQuery);
 
-async fn search_musicbrainz_artists(
+pub(crate) async fn search_musicbrainz_artists(
     app_ctx: &AppContext,
     query: &str,
     limit: i32,
@@ -313,7 +313,7 @@ async fn search_musicbrainz_artists(
         .collect())
 }
 
-async fn search_audius_artists(
+pub(crate) async fn search_audius_artists(
     app_ctx: &AppContext,
     query: &str,
     limit: i32,
@@ -331,7 +331,7 @@ async fn search_audius_artists(
         .collect())
 }
 
-async fn search_musicbrainz_tracks(
+pub(crate) async fn search_musicbrainz_tracks(
     app_ctx: &AppContext,
     query: &str,
     limit: i32,
@@ -347,7 +347,7 @@ async fn search_musicbrainz_tracks(
         .collect())
 }
 
-async fn search_audius_tracks(
+pub(crate) async fn search_audius_tracks(
     app_ctx: &AppContext,
     query: &str,
     limit: i32,
@@ -367,7 +367,7 @@ async fn search_audius_tracks(
 
 const MUSICBRAINZ_MAX_OFFSET: i64 = 10_000;
 
-async fn random_musicbrainz_tracks(
+pub(crate) async fn random_musicbrainz_tracks(
     app_ctx: &AppContext,
     limit: i32,
 ) -> Result<Vec<Track>, AppError> {
@@ -397,7 +397,7 @@ async fn random_musicbrainz_tracks(
         .collect())
 }
 
-async fn random_musicbrainz_artists(
+pub(crate) async fn random_musicbrainz_artists(
     app_ctx: &AppContext,
     limit: i32,
 ) -> Result<Vec<Artist>, AppError> {
@@ -427,7 +427,7 @@ async fn random_musicbrainz_artists(
         .collect())
 }
 
-async fn random_audius_tracks(
+pub(crate) async fn random_audius_tracks(
     app_ctx: &AppContext,
     limit: i32,
 ) -> Result<Vec<Track>, AppError> {
@@ -446,7 +446,7 @@ async fn random_audius_tracks(
         .collect())
 }
 
-async fn random_audius_artists(
+pub(crate) async fn random_audius_artists(
     app_ctx: &AppContext,
     limit: i32,
 ) -> Result<Vec<Artist>, AppError> {

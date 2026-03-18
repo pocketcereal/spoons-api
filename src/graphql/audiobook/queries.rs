@@ -115,7 +115,7 @@ impl AudiobookQuery {
 const LIBRIVOX_MAX_OFFSET: i64 = 20_000;
 const RANDOM_RETRY_ATTEMPTS: u32 = 3;
 
-async fn random_librivox_audiobooks(
+pub(crate) async fn random_librivox_audiobooks(
     service: &crate::services::AudiobookService,
     limit: i32,
 ) -> std::result::Result<Vec<crate::audiobook::Audiobook>, AppError> {
