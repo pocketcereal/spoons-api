@@ -1,6 +1,6 @@
 # Spoons API Reference
 
-GraphQL API for music, podcasts, and audiobooks. Aggregates data from MusicBrainz, Audius, PodcastIndex, and LibriVox.
+GraphQL API for music, podcasts, and audiobooks. Aggregates data from MusicBrainz, Audius, Jamendo, PodcastIndex, and LibriVox.
 
 ## Endpoints
 
@@ -42,13 +42,21 @@ All entities use source-prefixed IDs: `<source>:<id>`
 | Audiobook | `librivox` | `librivox:128` |
 | Chapter | `librivox` | `librivox:1001` |
 
+## Music Sources
+
+| Source | Content | Streaming | Notes |
+|--------|---------|-----------|-------|
+| **MusicBrainz** | Metadata only | No | Open music encyclopedia — artist info, recordings, releases |
+| **Audius** | Streamable tracks | Yes (`isStreamable`) | Decentralized platform — genre, mood, play counts |
+| **Jamendo** | Streamable tracks | Yes (`audioUrl`) | Creative Commons music — direct MP3 URLs |
+
 ---
 
 ## Music Queries
 
 ### searchArtists
 
-Search for artists across MusicBrainz, Audius, and Jamendo.
+Search for artists across all configured music sources.
 
 ```graphql
 query {
@@ -60,55 +68,33 @@ query {
   ) {
     __typename
     ... on MusicBrainzArtist {
-      id
-      name
-      source
-      sourceId
-      sortName
-      artistType
-      disambiguation
-      country
+      id name source sourceId
+      sortName artistType disambiguation country
       area { id name sortName }
       lifeSpan { begin end ended }
     }
     ... on AudiusArtist {
-      id
-      name
-      source
-      sourceId
-      imageUrl
-      handle
-      bio
-      location
-      isVerified
-      isDeactivated
-      followerCount
-      followingCount
-      trackCount
-      playlistCount
+      id name source sourceId imageUrl
+      handle bio location isVerified
+      followerCount trackCount
+    }
+    ... on JamendoArtist {
+      id name source sourceId imageUrl
+      website
     }
   }
 }
 ```
 
-When `source` is omitted, all configured sources are queried in parallel with a 10s timeout per source. Results are combined.
-
-**Jamendo** tracks include streaming URLs via `audioUrl`:
-```graphql
-query {
-  searchTracks(query: "ambient", source: JAMENDO, limit: 5) {
-    ... on JamendoTrack { id title source audioUrl albumName }
-  }
-}
-```
+When `source` is omitted, all configured sources are queried in parallel with a 10s timeout per source. Results are combined. If a source fails or times out, its results are silently omitted.
 
 ### artist
 
-Get a single artist by ID.
+Get a single artist by ID. Returns `null` if not found.
 
 ```graphql
 query {
-  artist(id: "musicbrainz:5b11f4ce-a62d-471e-81fc-a69a8278c7da", source: MUSIC_BRAINZ) {
+  artist(id: "5b11f4ce-a62d-471e-81fc-a69a8278c7da", source: MUSIC_BRAINZ) {
     ... on MusicBrainzArtist { id name country }
   }
 }
@@ -116,46 +102,35 @@ query {
 
 **Arguments:**
 - `id` — Source-specific ID (not prefixed). For MusicBrainz, this is a UUID.
-- `source` — Required: `MUSIC_BRAINZ` or `AUDIUS`
+- `source` — Required: `MUSIC_BRAINZ`, `AUDIUS`, or `JAMENDO`
 
 ### searchTracks
 
-Search for tracks/recordings across MusicBrainz and Audius.
+Search for tracks/recordings across all configured music sources.
 
 ```graphql
 query {
   searchTracks(
     query: "Creep"
-    source: null  # optional: MUSIC_BRAINZ | AUDIUS
+    source: null  # optional: MUSIC_BRAINZ | AUDIUS | JAMENDO
     limit: 25     # optional, default 25, max 100
     offset: 0     # optional, default 0, max 10000
   ) {
     __typename
     ... on MusicBrainzTrack {
-      id
-      title
-      source
-      sourceId
-      durationMs
-      artistName
-      disambiguation
-      video
+      id title source sourceId
+      durationMs artistName disambiguation video
     }
     ... on AudiusTrack {
-      id
-      title
-      source
-      sourceId
-      durationMs
-      artistName
-      description
-      genre
-      mood
-      playCount
-      favoriteCount
-      repostCount
-      artworkUrl
-      isStreamable
+      id title source sourceId
+      durationMs artistName description
+      genre mood playCount favoriteCount
+      artworkUrl isStreamable
+    }
+    ... on JamendoTrack {
+      id title source sourceId
+      durationMs artistName
+      audioUrl imageUrl albumName
     }
   }
 }
@@ -163,7 +138,7 @@ query {
 
 ### track
 
-Get a single track by ID.
+Get a single track by ID. Returns `null` if not found.
 
 ```graphql
 query {
@@ -175,7 +150,7 @@ query {
 
 **Arguments:**
 - `id` — Source-specific ID
-- `source` — Required: `MUSIC_BRAINZ` or `AUDIUS`
+- `source` — Required: `MUSIC_BRAINZ`, `AUDIUS`, or `JAMENDO`
 
 ### randomTracks
 
@@ -184,18 +159,20 @@ Get random tracks for discovery.
 ```graphql
 query {
   randomTracks(
-    source: null  # optional: MUSIC_BRAINZ | AUDIUS
+    source: null  # optional: MUSIC_BRAINZ | AUDIUS | JAMENDO
     limit: 10     # optional, default 10, max 100
   ) {
     __typename
     ... on MusicBrainzTrack { id title artistName }
     ... on AudiusTrack { id title artistName artworkUrl }
+    ... on JamendoTrack { id title artistName audioUrl }
   }
 }
 ```
 
 - **MusicBrainz**: Random offset into search index (capped at 10,000)
 - **Audius**: Sampled from trending tracks
+- **Jamendo**: Sampled from popular tracks
 
 ### randomArtists
 
@@ -204,18 +181,20 @@ Get random artists for discovery.
 ```graphql
 query {
   randomArtists(
-    source: null  # optional: MUSIC_BRAINZ | AUDIUS
+    source: null  # optional: MUSIC_BRAINZ | AUDIUS | JAMENDO
     limit: 10     # optional, default 10, max 100
   ) {
     __typename
     ... on MusicBrainzArtist { id name country }
     ... on AudiusArtist { id name handle }
+    ... on JamendoArtist { id name website }
   }
 }
 ```
 
 - **MusicBrainz**: Random offset into search index
 - **Audius**: Unique artists extracted from trending tracks
+- **Jamendo**: Unique artists extracted from popular tracks
 
 ### version
 
@@ -242,21 +221,11 @@ query {
     limit: 20              # optional, default 20, max 100
   ) {
     ... on PodcastIndexPodcast {
-      id
-      title
-      source
-      sourceId
-      author
-      description
-      artworkUrl
-      feedUrl
-      language
+      id title source sourceId
+      author description artworkUrl feedUrl language
       categories { id name }
-      episodeCount
-      latestPublishTime
-      itunesId
-      trendScore
-      podcastGuid
+      episodeCount latestPublishTime
+      itunesId trendScore podcastGuid
     }
   }
 }
@@ -322,22 +291,10 @@ query {
     limit: 20  # optional, default 20, max 100
   ) {
     ... on PodcastIndexEpisode {
-      id
-      title
-      source
-      sourceId
-      podcastId
-      description
-      audioUrl
-      durationSeconds
-      publishedAt
-      episodeNumber
-      seasonNumber
-      imageUrl
-      audioType
-      audioLength
-      episodeType
-      explicit
+      id title source sourceId podcastId
+      description audioUrl durationSeconds publishedAt
+      episodeNumber seasonNumber imageUrl
+      audioType audioLength episodeType explicit
     }
   }
 }
@@ -388,22 +345,12 @@ query {
     limit: 20          # optional, default 20, max 100
   ) {
     ... on LibriVoxAudiobook {
-      id
-      title
-      source
-      sourceId
-      description
-      language
+      id title source sourceId
+      description language
       authors { firstName lastName dob dod }
-      numSections
-      totalTime
-      totalTimeSecs
-      coverartUrl
-      copyrightYear
-      urlTextSource
-      urlZipFile
-      urlLibrivox
-      urlIarchive
+      numSections totalTime totalTimeSecs
+      coverartUrl copyrightYear
+      urlTextSource urlZipFile urlLibrivox urlIarchive
       coverartThumbnail
     }
   }
@@ -418,11 +365,9 @@ Get a single audiobook by prefixed ID.
 query {
   audiobook(id: "librivox:128") {
     ... on LibriVoxAudiobook {
-      id
-      title
+      id title
       authors { firstName lastName }
-      numSections
-      totalTime
+      numSections totalTime
     }
   }
 }
@@ -439,17 +384,9 @@ query {
     limit: 100  # optional, default 100, max 100
   ) {
     ... on LibriVoxChapter {
-      id
-      title
-      source
-      sourceId
-      audiobookId
-      sectionNumber
-      duration
-      durationSeconds
-      listenUrl
-      language
-      readers
+      id title source sourceId audiobookId
+      sectionNumber duration durationSeconds
+      listenUrl language readers
     }
   }
 }
@@ -489,8 +426,16 @@ query {
     limit: 10                                # optional, default 20, per-domain limit
   ) {
     music {
-      artists { ... on MusicBrainzArtist { id name } ... on AudiusArtist { id name } }
-      tracks { ... on MusicBrainzTrack { id title } ... on AudiusTrack { id title } }
+      artists {
+        ... on MusicBrainzArtist { id name }
+        ... on AudiusArtist { id name }
+        ... on JamendoArtist { id name }
+      }
+      tracks {
+        ... on MusicBrainzTrack { id title }
+        ... on AudiusTrack { id title }
+        ... on JamendoTrack { id title audioUrl }
+      }
     }
     podcasts {
       podcasts { ... on PodcastIndexPodcast { id title author } }
@@ -503,14 +448,16 @@ query {
 ```
 
 **Arguments:**
-- `query` — Search term (1–500 characters)
+- `query` — Search term (1-500 characters)
 - `domains` — Optional array of `ContentDomain` values: `MUSIC`, `PODCASTS`, `AUDIOBOOKS`. Omit for all.
 - `limit` — Per-domain result limit (default 20, max 100). Each domain gets up to this many results.
 
 **Return type:** `SearchResults` with nullable domain fields:
-- `music: { artists, tracks }` — null if not requested or failed
-- `podcasts: { podcasts }` — null if not requested, not configured, or failed
-- `audiobooks: { audiobooks }` — null if not requested, not configured, or failed
+- `music: { artists, tracks }` — null if not requested or no music sources configured
+- `podcasts: { podcasts }` — null if not requested or not configured
+- `audiobooks: { audiobooks }` — null if not requested or not configured
+
+If a source fails or times out (10s), it's silently omitted. Other sources still return data.
 
 ### random
 
@@ -523,8 +470,8 @@ query {
     limit: 5                          # optional, default 10, per-domain limit
   ) {
     music {
-      artists { ... on MusicBrainzArtist { id name } }
-      tracks { ... on MusicBrainzTrack { id title artistName } }
+      artists { ... on MusicBrainzArtist { id name } ... on JamendoArtist { id name } }
+      tracks { ... on AudiusTrack { id title artworkUrl } ... on JamendoTrack { id title audioUrl } }
     }
     podcasts {
       episodes { ... on PodcastIndexEpisode { id title audioUrl } }
@@ -540,7 +487,7 @@ query {
 - `domains` — Optional array of `ContentDomain`. Omit for all.
 - `limit` — Per-domain limit (default 10, max 100).
 
-**Partial failure:** All domains are queried in parallel. Podcast and audiobook domains have a 10-second timeout. Music relies on per-source timeouts (10s each for MusicBrainz and Audius individually). If a domain fails or times out, its field is `null` and the failure is logged server-side. Other domains still return data.
+**Partial failure:** All sources within each domain are queried in parallel with a 10s timeout per source. If a source fails or times out, its results are omitted. Other sources still return data. Domain fields are `null` only if no sources are configured for that domain.
 
 ---
 
@@ -548,10 +495,10 @@ query {
 
 | Parameter | Rule |
 |-----------|------|
-| `query` / `title` | Trimmed, 1–500 characters |
-| `id` | Trimmed, 1–64 characters |
-| `limit` | Clamped to 1–100 |
-| `offset` | Clamped to 0–10,000 |
+| `query` / `title` | Trimmed, 1-500 characters |
+| `id` | Trimmed, 1-64 characters |
+| `limit` | Clamped to 1-100 |
+| `offset` | Clamped to 0-10,000 |
 
 ## Error Codes
 
@@ -561,7 +508,7 @@ Errors are returned in the standard GraphQL `errors` array with an `extensions.c
 |------|---------|
 | `NOT_FOUND` | Entity not found |
 | `INVALID_INPUT` | Validation failed (empty query, bad ID format, etc.) |
-| `FEATURE_DISABLED` | Required integration not configured |
+| `FEATURE_DISABLED` | Required source not configured |
 | `INTERNAL_SERVER_ERROR` | Unexpected server error |
 
 Example error response:
@@ -578,11 +525,11 @@ Example error response:
 
 ## Caching
 
-All data is cached in PostgreSQL with a configurable TTL (`database.cache_ttl_seconds`, default 24 hours).
+MusicBrainz, PodcastIndex, and LibriVox data is cached in PostgreSQL with a configurable TTL (`database.cache_ttl_seconds`, default 24 hours). Audius and Jamendo results are not DB-cached.
 
-- **Single entity lookups** (`artist`, `audiobook`, `podcast`, `episode`): Cache-first — returns DB-cached data if fresh, otherwise fetches from source API and caches the result.
-- **Search queries** (`searchArtists`, `searchAudiobooks`, etc.): Cache-first — caches both the search result ordering and the individual entities.
-- **Random queries** (`randomTracks`, `randomAudiobooks`, etc.): Always hit the source API, but cache the individual entities returned.
+- **Single entity lookups** (`artist`, `audiobook`, `podcast`, `episode`): Cache-first for cached sources — returns DB-cached data if fresh, otherwise fetches from source API and caches the result.
+- **Search queries** (`searchArtists`, `searchAudiobooks`, etc.): Cache-first for cached sources — caches both the search result ordering and the individual entities.
+- **Random queries** (`randomTracks`, `randomAudiobooks`, etc.): Always hit the source API, but cache the individual entities returned (for cached sources).
 - **Trending/categories**: Direct API calls (not DB-cached).
 
 ## Configuration
@@ -600,6 +547,10 @@ database:
 audius:
   enabled: true
   app_name: spoons-api
+
+jamendo:
+  enabled: true
+  client_id: ${JAMENDO_CLIENT_ID}
 
 podcast_index:
   enabled: true
