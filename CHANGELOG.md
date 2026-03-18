@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- Added `randomTracks` and `randomArtists` GraphQL queries with optional `source` filter and parallel fan-out across MusicBrainz and Audius
+- Added Audius trending tracks endpoint (`/tracks/trending`) for random track/artist sampling
+- Added MusicBrainz random selection via search offset randomization (capped at 10,000)
+- Added Terraform + Docker Compose deployment for GCP single-VM setup (Caddy TLS, Redis, Supabase Postgres)
+
 ### Removed
 - Removed unused `redis` dependency from Cargo.toml
 - Removed dead `cache` module (src/cache/) - Redis caching was not being used

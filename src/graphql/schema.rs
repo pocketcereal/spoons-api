@@ -1,6 +1,7 @@
 use async_graphql::{
     Context, EmptyMutation, EmptySubscription, ErrorExtensions, MergedObject, Object, Schema,
 };
+use rand::seq::SliceRandom;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -223,6 +224,42 @@ impl MusicQuery {
         .await
     }
 
+    async fn random_tracks(
+        &self,
+        ctx: &Context<'_>,
+        source: Option<DataSource>,
+        #[graphql(default = 10)] limit: i32,
+    ) -> GqlResult<Vec<Track>> {
+        let app_ctx = get_app_context(ctx)?;
+        let limit = clamp_limit(limit);
+
+        search_sources(
+            source,
+            random_musicbrainz_tracks(app_ctx, limit),
+            random_audius_tracks(app_ctx, limit),
+            "random track",
+        )
+        .await
+    }
+
+    async fn random_artists(
+        &self,
+        ctx: &Context<'_>,
+        source: Option<DataSource>,
+        #[graphql(default = 10)] limit: i32,
+    ) -> GqlResult<Vec<Artist>> {
+        let app_ctx = get_app_context(ctx)?;
+        let limit = clamp_limit(limit);
+
+        search_sources(
+            source,
+            random_musicbrainz_artists(app_ctx, limit),
+            random_audius_artists(app_ctx, limit),
+            "random artist",
+        )
+        .await
+    }
+
     async fn track(&self, ctx: &Context<'_>, id: String, source: DataSource) -> GqlResult<Track> {
         let id = validate_id(&id)?;
         let app_ctx = get_app_context(ctx)?;
@@ -313,11 +350,155 @@ async fn search_audius_tracks(
         .collect())
 }
 
+const MUSICBRAINZ_MAX_OFFSET: i64 = 10_000;
+
+fn random_sample<T>(mut items: Vec<T>, n: usize) -> Vec<T> {
+    if items.len() <= n {
+        return items;
+    }
+    items.partial_shuffle(&mut rand::thread_rng(), n);
+    items.truncate(n);
+    items
+}
+
+async fn random_musicbrainz_tracks(
+    app_ctx: &AppContext,
+    limit: i32,
+) -> Result<Vec<Track>, AppError> {
+    let (count, _) = app_ctx
+        .music
+        .mb_client()
+        .search_recordings_with_count("*", 1, 0)
+        .await?;
+
+    if count == 0 {
+        return Ok(Vec::new());
+    }
+
+    let max_offset = count.min(MUSICBRAINZ_MAX_OFFSET) - 1;
+    let offset = (rand::random::<u64>() % (max_offset as u64 + 1)) as i32;
+
+    let recordings = app_ctx
+        .music
+        .mb_client()
+        .search_recordings_with_count("*", limit, offset as i32)
+        .await?
+        .1;
+
+    Ok(recordings
+        .into_iter()
+        .map(|r| Track::MusicBrainz(r.into()))
+        .collect())
+}
+
+async fn random_musicbrainz_artists(
+    app_ctx: &AppContext,
+    limit: i32,
+) -> Result<Vec<Artist>, AppError> {
+    let (count, _) = app_ctx
+        .music
+        .mb_client()
+        .search_artists_with_count("*", 1, 0)
+        .await?;
+
+    if count == 0 {
+        return Ok(Vec::new());
+    }
+
+    let max_offset = count.min(MUSICBRAINZ_MAX_OFFSET) - 1;
+    let offset = (rand::random::<u64>() % (max_offset as u64 + 1)) as i32;
+
+    let artists = app_ctx
+        .music
+        .mb_client()
+        .search_artists_with_count("*", limit, offset as i32)
+        .await?
+        .1;
+
+    Ok(artists
+        .into_iter()
+        .map(|a| Artist::MusicBrainz(a.into()))
+        .collect())
+}
+
+async fn random_audius_tracks(
+    app_ctx: &AppContext,
+    limit: i32,
+) -> Result<Vec<Track>, AppError> {
+    let client = match app_ctx.music.audius_client() {
+        Some(c) => c,
+        None => return Ok(Vec::new()),
+    };
+
+    let pool_size = limit * 3;
+    let tracks = client.trending_tracks(pool_size).await?;
+    let sampled = random_sample(tracks, limit as usize);
+
+    Ok(sampled
+        .into_iter()
+        .map(|t| Track::Audius(t.into()))
+        .collect())
+}
+
+async fn random_audius_artists(
+    app_ctx: &AppContext,
+    limit: i32,
+) -> Result<Vec<Artist>, AppError> {
+    let client = match app_ctx.music.audius_client() {
+        Some(c) => c,
+        None => return Ok(Vec::new()),
+    };
+
+    let tracks = client.trending_tracks(100).await?;
+
+    let mut seen = std::collections::HashSet::new();
+    let unique_users: Vec<_> = tracks
+        .into_iter()
+        .filter_map(|t| t.user)
+        .filter(|u| seen.insert(u.id.clone()))
+        .collect();
+
+    let sampled = random_sample(unique_users, limit as usize);
+
+    Ok(sampled
+        .into_iter()
+        .map(|u| Artist::Audius(u.into()))
+        .collect())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::db::{DbConfig, create_pool};
     use crate::musicbrainz::MusicBrainzClient;
+
+    #[test]
+    fn test_random_sample_fewer_than_n() {
+        let items = vec![1, 2, 3];
+        let result = random_sample(items, 10);
+        assert_eq!(result.len(), 3);
+    }
+
+    #[test]
+    fn test_random_sample_exact_n() {
+        let items = vec![1, 2, 3];
+        let result = random_sample(items, 3);
+        assert_eq!(result.len(), 3);
+    }
+
+    #[test]
+    fn test_random_sample_larger_than_n() {
+        let items: Vec<i32> = (0..100).collect();
+        let result = random_sample(items, 5);
+        assert_eq!(result.len(), 5);
+    }
+
+    #[test]
+    fn test_random_sample_empty() {
+        let items: Vec<i32> = vec![];
+        let result = random_sample(items, 5);
+        assert!(result.is_empty());
+    }
 
     #[test]
     fn test_schema_builds() {

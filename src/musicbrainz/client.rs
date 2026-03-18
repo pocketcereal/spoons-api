@@ -91,6 +91,41 @@ impl MusicBrainzClient {
         self.client.get_with_query(&path, &RecordingParams::default()).await
     }
 
+    pub async fn search_artists_with_count(
+        &self,
+        query: &str,
+        limit: i32,
+        offset: i32,
+    ) -> Result<(i64, Vec<Artist>)> {
+        let params = SearchParams {
+            query: query.to_string(),
+            limit,
+            offset,
+            fmt: "json".to_string(),
+        };
+
+        let result: SearchResult<Artist> = self.client.get_with_query("/artist", &params).await?;
+        Ok(result.into_parts())
+    }
+
+    pub async fn search_recordings_with_count(
+        &self,
+        query: &str,
+        limit: i32,
+        offset: i32,
+    ) -> Result<(i64, Vec<Recording>)> {
+        let params = SearchParams {
+            query: query.to_string(),
+            limit,
+            offset,
+            fmt: "json".to_string(),
+        };
+
+        let result: SearchResult<Recording> =
+            self.client.get_with_query("/recording", &params).await?;
+        Ok(result.into_parts())
+    }
+
     pub async fn search_release_groups(
         &self,
         query: &str,

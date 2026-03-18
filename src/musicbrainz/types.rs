@@ -171,6 +171,11 @@ impl<T> SearchResult<T> {
             SearchData::ReleaseGroups { release_groups } => release_groups,
         }
     }
+
+    /// Get the total count and items from the search result.
+    pub fn into_parts(self) -> (i64, Vec<T>) {
+        (self.count, self.items())
+    }
 }
 
 #[cfg(test)]
@@ -201,5 +206,36 @@ mod tests {
         let recording: Recording = serde_json::from_str(json).unwrap();
         assert_eq!(recording.title, "Smells Like Teen Spirit");
         assert_eq!(recording.length, Some(301000));
+    }
+
+    #[test]
+    fn test_into_parts_preserves_count_and_items() {
+        let json = r#"{
+            "created": "2024-01-01",
+            "count": 42,
+            "offset": 0,
+            "artists": [
+                {"id": "1", "name": "Artist One", "sort-name": "One, Artist"},
+                {"id": "2", "name": "Artist Two", "sort-name": "Two, Artist"}
+            ]
+        }"#;
+        let result: SearchResult<Artist> = serde_json::from_str(json).unwrap();
+        let (count, items) = result.into_parts();
+        assert_eq!(count, 42);
+        assert_eq!(items.len(), 2);
+        assert_eq!(items[0].name, "Artist One");
+    }
+
+    #[test]
+    fn test_into_parts_empty_results() {
+        let json = r#"{
+            "count": 0,
+            "offset": 0,
+            "recordings": []
+        }"#;
+        let result: SearchResult<Recording> = serde_json::from_str(json).unwrap();
+        let (count, items) = result.into_parts();
+        assert_eq!(count, 0);
+        assert!(items.is_empty());
     }
 }

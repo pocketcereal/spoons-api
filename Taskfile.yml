@@ -297,6 +297,24 @@ tasks:
         run_query "search_tracks_multi_source" \
           '{"query":"{ searchTracks(query: \"Around the World\", limit: 3) { __typename ... on MusicBrainzTrack { id title artistName } ... on AudiusTrack { id title artistName } } }"}'
 
+        run_query "random_tracks" \
+          '{"query":"{ randomTracks(limit: 5) { __typename ... on MusicBrainzTrack { id title source artistName } ... on AudiusTrack { id title source artistName genre } } }"}'
+
+        run_query "random_tracks_audius" \
+          '{"query":"{ randomTracks(source: AUDIUS, limit: 3) { __typename ... on AudiusTrack { id title source artistName } } }"}'
+
+        run_query "random_tracks_musicbrainz" \
+          '{"query":"{ randomTracks(source: MUSIC_BRAINZ, limit: 3) { __typename ... on MusicBrainzTrack { id title source artistName } } }"}'
+
+        run_query "random_artists" \
+          '{"query":"{ randomArtists(limit: 5) { __typename ... on MusicBrainzArtist { id name source country } ... on AudiusArtist { id name source handle } } }"}'
+
+        run_query "random_artists_audius" \
+          '{"query":"{ randomArtists(source: AUDIUS, limit: 3) { __typename ... on AudiusArtist { id name source handle } } }"}'
+
+        run_query "random_artists_musicbrainz" \
+          '{"query":"{ randomArtists(source: MUSIC_BRAINZ, limit: 3) { __typename ... on MusicBrainzArtist { id name source country } } }"}'
+
         TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
         SUMMARY=$(jq -n \
           --arg ts "$TIMESTAMP" \

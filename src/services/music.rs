@@ -38,6 +38,10 @@ impl MusicService {
         self.audius_client.as_ref()
     }
 
+    pub fn mb_client(&self) -> &MusicBrainzClient {
+        &self.mb_client
+    }
+
     // === Artists ===
 
     pub async fn get_artist(&self, id: &str) -> Result<Artist> {

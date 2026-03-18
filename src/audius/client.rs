@@ -23,6 +23,14 @@ struct SearchParamsOwned {
 }
 
 #[derive(serde::Serialize)]
+struct TrendingParams {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    limit: Option<i32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    app_name: Option<String>,
+}
+
+#[derive(serde::Serialize)]
 struct AppNameParamOwned {
     #[serde(skip_serializing_if = "Option::is_none")]
     app_name: Option<String>,
@@ -228,6 +236,17 @@ impl AudiusClient {
         Ok(response.data)
     }
 
+    /// See: https://audiusproject.github.io/api-docs/#get-trending-tracks
+    pub async fn trending_tracks(&self, limit: i32) -> Result<Vec<AudiusTrack>> {
+        let params = TrendingParams {
+            limit: Some(limit),
+            app_name: Some(self.app_name.clone()),
+        };
+        let response: AudiusResponse<Vec<AudiusTrack>> =
+            self.get_with_fallback("/tracks/trending", &params).await?;
+        Ok(response.data)
+    }
+
     /// See: https://audiusproject.github.io/api-docs/#get-track
     pub async fn get_track(&self, id: &str) -> Result<AudiusTrack> {
         let path = format!("/tracks/{}", id);
@@ -248,5 +267,27 @@ mod tests {
     fn test_client_with_host() {
         let client = AudiusClient::with_host("https://api.audius.co", "test-app");
         assert!(client.is_ok());
+    }
+
+    #[test]
+    fn test_trending_params_serialization() {
+        let params = TrendingParams {
+            limit: Some(10),
+            app_name: Some("test-app".to_string()),
+        };
+        let json = serde_json::to_value(&params).unwrap();
+        assert_eq!(json["limit"], 10);
+        assert_eq!(json["app_name"], "test-app");
+    }
+
+    #[test]
+    fn test_trending_params_skips_none() {
+        let params = TrendingParams {
+            limit: None,
+            app_name: None,
+        };
+        let json = serde_json::to_value(&params).unwrap();
+        assert!(!json.as_object().unwrap().contains_key("limit"));
+        assert!(!json.as_object().unwrap().contains_key("app_name"));
     }
 }
