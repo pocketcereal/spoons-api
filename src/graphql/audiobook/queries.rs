@@ -7,6 +7,7 @@ use crate::graphql::{
     clamp_limit, get_app_context, require_audiobook_service, validate_id, validate_query,
 };
 
+use super::audiobook_types::AudiobookSource;
 use super::{Audiobook, Chapter};
 
 #[derive(Default)]
@@ -19,7 +20,9 @@ impl AudiobookQuery {
         ctx: &Context<'_>,
         query: String,
         #[graphql(default = 20)] limit: i32,
+        source: Option<AudiobookSource>,
     ) -> Result<Vec<Audiobook>> {
+        let _ = source;
         let query = validate_query(&query)?;
         let limit = clamp_limit(limit);
         let app_ctx = get_app_context(ctx)?;
@@ -94,7 +97,9 @@ impl AudiobookQuery {
         &self,
         ctx: &Context<'_>,
         #[graphql(default = 10)] limit: i32,
+        source: Option<AudiobookSource>,
     ) -> Result<Vec<Audiobook>> {
+        let _ = source;
         let limit = clamp_limit(limit);
         let app_ctx = get_app_context(ctx)?;
         let service = require_audiobook_service(app_ctx)?;
@@ -115,11 +120,10 @@ async fn random_librivox_audiobooks(
     limit: i32,
 ) -> std::result::Result<Vec<crate::audiobook::Audiobook>, AppError> {
     let fetch_limit = limit * 2;
-    let mut offset = (rand::random::<u64>() % (LIBRIVOX_MAX_OFFSET as u64)) as i32;
+    let mut offset = rand::Rng::gen_range(&mut rand::thread_rng(), 0..LIBRIVOX_MAX_OFFSET as i32);
 
     for _ in 0..RANDOM_RETRY_ATTEMPTS {
         let results = service
-            .client()
             .get_audiobooks_page(fetch_limit, offset)
             .await?;
 
