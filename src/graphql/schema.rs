@@ -10,6 +10,7 @@ use crate::error::AppError;
 use crate::services::{AudiobookService, MusicService, PodcastService};
 
 use super::audiobook::AudiobookQuery;
+use super::unified::UnifiedQuery;
 use super::helpers::random_sample;
 use super::podcast::PodcastQuery;
 use super::types::{Artist, Track};
@@ -297,7 +298,7 @@ impl MusicQuery {
 }
 
 #[derive(MergedObject, Default)]
-pub struct QueryRoot(MusicQuery, PodcastQuery, AudiobookQuery);
+pub struct QueryRoot(MusicQuery, PodcastQuery, AudiobookQuery, UnifiedQuery);
 
 async fn search_musicbrainz_artists(
     app_ctx: &AppContext,
@@ -381,7 +382,7 @@ async fn random_musicbrainz_tracks(
     }
 
     let max_offset = count.min(MUSICBRAINZ_MAX_OFFSET) - 1;
-    let offset = (rand::random::<u64>() % (max_offset as u64 + 1)) as i32;
+    let offset = rand::Rng::gen_range(&mut rand::thread_rng(), 0..=max_offset as i32);
 
     let recordings = app_ctx
         .music
@@ -411,7 +412,7 @@ async fn random_musicbrainz_artists(
     }
 
     let max_offset = count.min(MUSICBRAINZ_MAX_OFFSET) - 1;
-    let offset = (rand::random::<u64>() % (max_offset as u64 + 1)) as i32;
+    let offset = rand::Rng::gen_range(&mut rand::thread_rng(), 0..=max_offset as i32);
 
     let artists = app_ctx
         .music
