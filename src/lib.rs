@@ -1,5 +1,6 @@
 //! Spoons API - A REST API for music data.
 
+pub mod audiobook;
 pub mod audius;
 pub mod auth;
 pub mod cache;
