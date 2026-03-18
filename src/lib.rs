@@ -19,3 +19,4 @@ pub mod podcast_index;
 pub mod routes;
 pub mod server;
 pub mod services;
+pub mod sources;

@@ -54,6 +54,7 @@ async-graphql-axum = "7"
 
 # Random number generation
 rand = "0.8"
+futures = "0.3.32"
 
 [dev-dependencies]
 axum-test = "18"
