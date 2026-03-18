@@ -130,6 +130,24 @@ impl Default for PodcastIndexConfig {
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(default)]
+pub struct JamendoConfig {
+    pub enabled: bool,
+    pub client_id: Option<String>,
+    pub base_url: String,
+}
+
+impl Default for JamendoConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            client_id: None,
+            base_url: "https://api.jamendo.com/v3.0".to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default)]
 pub struct LibriVoxConfig {
     pub enabled: bool,
     pub base_url: String,
@@ -177,6 +195,7 @@ pub struct AppConfig {
     pub logging: LoggingConfig,
     pub audius: AudiusConfig,
     pub database: DatabaseConfig,
+    pub jamendo: JamendoConfig,
     pub podcast_index: PodcastIndexConfig,
     pub librivox: LibriVoxConfig,
     pub cache: CacheConfig,

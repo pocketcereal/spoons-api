@@ -40,6 +40,7 @@ use crate::domain::DataSource;
 pub enum Artist {
     MusicBrainz(MusicBrainzArtist),
     Audius(AudiusArtist),
+    Jamendo(JamendoArtist),
 }
 
 /// Artist from MusicBrainz.
@@ -285,6 +286,7 @@ impl AudiusArtist {
 pub enum Track {
     MusicBrainz(MusicBrainzTrack),
     Audius(AudiusTrack),
+    Jamendo(JamendoTrack),
 }
 
 /// Recording/Track from MusicBrainz.
@@ -458,6 +460,131 @@ impl AudiusTrack {
 }
 
 // ============================================================================
+// Jamendo Types
+// ============================================================================
+
+/// Artist from Jamendo.
+#[derive(Debug, Clone)]
+pub struct JamendoArtist {
+    /// Internal ID (prefixed with source).
+    pub id: String,
+    /// Artist name.
+    pub name: String,
+    /// Jamendo artist ID.
+    pub source_id: String,
+    /// Artist image URL.
+    pub image_url: Option<String>,
+    /// Artist website.
+    pub website: Option<String>,
+}
+
+#[Object]
+impl JamendoArtist {
+    /// Internal ID.
+    async fn id(&self) -> &str {
+        &self.id
+    }
+
+    /// Artist name.
+    async fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Data source.
+    async fn source(&self) -> DataSource {
+        DataSource::Jamendo
+    }
+
+    /// Jamendo artist ID.
+    async fn source_id(&self) -> &str {
+        &self.source_id
+    }
+
+    /// Artist image URL.
+    async fn image_url(&self) -> Option<String> {
+        self.image_url.clone()
+    }
+
+    // Jamendo-specific fields
+
+    /// Artist website.
+    async fn website(&self) -> Option<&str> {
+        self.website.as_deref()
+    }
+}
+
+/// Track from Jamendo.
+#[derive(Debug, Clone)]
+pub struct JamendoTrack {
+    /// Internal ID.
+    pub id: String,
+    /// Track title.
+    pub title: String,
+    /// Jamendo track ID.
+    pub source_id: String,
+    /// Duration in milliseconds.
+    pub duration_ms: Option<i64>,
+    /// Primary artist name.
+    pub artist_name: Option<String>,
+    /// Streaming audio URL.
+    pub audio_url: String,
+    /// Track artwork URL.
+    pub image_url: Option<String>,
+    /// Album name.
+    pub album_name: Option<String>,
+}
+
+#[Object]
+impl JamendoTrack {
+    /// Internal ID.
+    async fn id(&self) -> &str {
+        &self.id
+    }
+
+    /// Track title.
+    async fn title(&self) -> &str {
+        &self.title
+    }
+
+    /// Data source.
+    async fn source(&self) -> DataSource {
+        DataSource::Jamendo
+    }
+
+    /// Jamendo track ID.
+    async fn source_id(&self) -> &str {
+        &self.source_id
+    }
+
+    /// Duration in milliseconds.
+    async fn duration_ms(&self) -> Option<i64> {
+        self.duration_ms
+    }
+
+    /// Primary artist name.
+    async fn artist_name(&self) -> Option<String> {
+        self.artist_name.clone()
+    }
+
+    // Jamendo-specific fields
+
+    /// Streaming audio URL.
+    async fn audio_url(&self) -> &str {
+        &self.audio_url
+    }
+
+    /// Track artwork URL.
+    async fn image_url(&self) -> Option<&str> {
+        self.image_url.as_deref()
+    }
+
+    /// Album name.
+    async fn album_name(&self) -> Option<&str> {
+        self.album_name.as_deref()
+    }
+}
+
+// ============================================================================
 // Conversion Implementations
 // ============================================================================
 
@@ -557,6 +684,33 @@ impl From<crate::audius::AudiusTrack> for AudiusTrack {
             repost_count: track.repost_count,
             artwork_url: track.artwork.and_then(|a| a.medium.or(a.small)),
             is_streamable: track.is_streamable,
+        }
+    }
+}
+
+impl From<crate::jamendo::JamendoArtist> for JamendoArtist {
+    fn from(a: crate::jamendo::JamendoArtist) -> Self {
+        Self {
+            id: DataSource::Jamendo.format_id(&a.id),
+            name: a.name,
+            source_id: a.id,
+            image_url: a.image,
+            website: a.website,
+        }
+    }
+}
+
+impl From<crate::jamendo::JamendoTrack> for JamendoTrack {
+    fn from(t: crate::jamendo::JamendoTrack) -> Self {
+        Self {
+            id: DataSource::Jamendo.format_id(&t.id),
+            title: t.name,
+            source_id: t.id,
+            duration_ms: Some(t.duration as i64 * 1000), // seconds to ms
+            artist_name: Some(t.artist_name),
+            audio_url: t.audio,
+            image_url: t.image,
+            album_name: t.album_name,
         }
     }
 }
