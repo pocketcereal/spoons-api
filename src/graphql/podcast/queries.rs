@@ -1,16 +1,29 @@
 use async_graphql::{Context, ErrorExtensions, Object, Result};
 
+use crate::domain::PodcastProvider;
 use crate::error::AppError;
-use crate::graphql::{clamp_limit, get_app_context, require_podcast_service, validate_query};
+use crate::graphql::schema::AppContext;
+use crate::graphql::{clamp_limit, get_app_context, validate_query};
 use crate::podcast::PodcastSource as DomainPodcastSource;
 
 use super::{Category, Episode, Podcast};
+
+fn require_podcast_provider(
+    app_ctx: &std::sync::Arc<AppContext>,
+) -> Result<&std::sync::Arc<dyn PodcastProvider>> {
+    app_ctx.podcast_providers.first().ok_or_else(|| {
+        AppError::FeatureDisabled(
+            "PodcastIndex is not configured. Set podcast_index in config.yaml.".into(),
+        )
+        .extend()
+    })
+}
+
 #[derive(Default)]
 pub struct PodcastQuery;
 
 #[Object]
 impl PodcastQuery {
-    /// Search podcasts by term.
     async fn search_podcasts(
         &self,
         ctx: &Context<'_>,
@@ -20,17 +33,13 @@ impl PodcastQuery {
         let query = validate_query(&query)?;
         let limit = clamp_limit(limit);
         let app_ctx = get_app_context(ctx)?;
-        let service = require_podcast_service(app_ctx)?;
-
-        let results = service
+        let provider = require_podcast_provider(app_ctx)?;
+        provider
             .search_podcasts(&query, limit)
             .await
-            .map_err(|e| e.extend())?;
-
-        Ok(results.into_iter().map(Podcast::from).collect())
+            .map_err(|e| e.extend())
     }
 
-    /// Search podcasts by title.
     async fn search_podcasts_by_title(
         &self,
         ctx: &Context<'_>,
@@ -40,17 +49,13 @@ impl PodcastQuery {
         let title = validate_query(&title)?;
         let limit = clamp_limit(limit);
         let app_ctx = get_app_context(ctx)?;
-        let service = require_podcast_service(app_ctx)?;
-
-        let results = service
+        let provider = require_podcast_provider(app_ctx)?;
+        provider
             .search_by_title(&title, limit)
             .await
-            .map_err(|e| e.extend())?;
-
-        Ok(results.into_iter().map(Podcast::from).collect())
+            .map_err(|e| e.extend())
     }
 
-    /// Get trending podcasts.
     async fn trending_podcasts(
         &self,
         ctx: &Context<'_>,
@@ -59,18 +64,13 @@ impl PodcastQuery {
     ) -> Result<Vec<Podcast>> {
         let limit = clamp_limit(limit);
         let app_ctx = get_app_context(ctx)?;
-        let service = require_podcast_service(app_ctx)?;
-
-        let results = service
-            .client()
+        let provider = require_podcast_provider(app_ctx)?;
+        provider
             .trending(limit, categories.as_deref())
             .await
-            .map_err(|e| e.extend())?;
-
-        Ok(results.into_iter().map(Podcast::from).collect())
+            .map_err(|e| e.extend())
     }
 
-    /// Get a podcast by ID.
     async fn podcast(&self, ctx: &Context<'_>, id: String) -> Result<Option<Podcast>> {
         let app_ctx = get_app_context(ctx)?;
 
@@ -84,27 +84,18 @@ impl PodcastQuery {
 
         match source {
             DomainPodcastSource::PodcastIndex => {
-                let service = require_podcast_service(app_ctx)?;
-                let podcast = service
-                    .get_podcast(feed_id)
-                    .await
-                    .map_err(|e| e.extend())?;
-                Ok(podcast.map(Podcast::from))
+                let provider = require_podcast_provider(app_ctx)?;
+                provider.get_podcast(feed_id).await.map_err(|e| e.extend())
             }
         }
     }
 
-    /// Get all podcast categories.
     async fn podcast_categories(&self, ctx: &Context<'_>) -> Result<Vec<Category>> {
         let app_ctx = get_app_context(ctx)?;
-        let service = require_podcast_service(app_ctx)?;
-
-        let categories = service.client().categories().await.map_err(|e| e.extend())?;
-
-        Ok(categories.into_iter().map(Category::from).collect())
+        let provider = require_podcast_provider(app_ctx)?;
+        provider.categories().await.map_err(|e| e.extend())
     }
 
-    /// Get episodes for a podcast.
     async fn episodes(
         &self,
         ctx: &Context<'_>,
@@ -124,18 +115,15 @@ impl PodcastQuery {
 
         match source {
             DomainPodcastSource::PodcastIndex => {
-                let service = require_podcast_service(app_ctx)?;
-                let episodes = service
+                let provider = require_podcast_provider(app_ctx)?;
+                provider
                     .get_episodes(feed_id, limit)
                     .await
-                    .map_err(|e| e.extend())?;
-
-                Ok(episodes.into_iter().map(Episode::from).collect())
+                    .map_err(|e| e.extend())
             }
         }
     }
 
-    /// Get a single episode by ID.
     async fn episode(&self, ctx: &Context<'_>, id: String) -> Result<Option<Episode>> {
         let app_ctx = get_app_context(ctx)?;
 
@@ -149,17 +137,15 @@ impl PodcastQuery {
 
         match source {
             DomainPodcastSource::PodcastIndex => {
-                let service = require_podcast_service(app_ctx)?;
-                let episode = service
+                let provider = require_podcast_provider(app_ctx)?;
+                provider
                     .get_episode(episode_id)
                     .await
-                    .map_err(|e| e.extend())?;
-                Ok(episode.map(Episode::from))
+                    .map_err(|e| e.extend())
             }
         }
     }
 
-    /// Get random episodes for discovery.
     async fn random_episodes(
         &self,
         ctx: &Context<'_>,
@@ -169,14 +155,10 @@ impl PodcastQuery {
     ) -> Result<Vec<Episode>> {
         let limit = clamp_limit(limit);
         let app_ctx = get_app_context(ctx)?;
-        let service = require_podcast_service(app_ctx)?;
-
-        let episodes = service
-            .client()
+        let provider = require_podcast_provider(app_ctx)?;
+        provider
             .random_episodes(limit, language.as_deref(), categories.as_deref())
             .await
-            .map_err(|e| e.extend())?;
-
-        Ok(episodes.into_iter().map(Episode::from).collect())
+            .map_err(|e| e.extend())
     }
 }

@@ -14,6 +14,7 @@ impl PodcastIndexProvider {
     }
 }
 
+#[async_trait::async_trait]
 impl PodcastProvider for PodcastIndexProvider {
     fn source_id(&self) -> PodcastSource {
         PodcastSource::PodcastIndex

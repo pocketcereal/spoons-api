@@ -2,6 +2,7 @@ use crate::audiobook::AudiobookSource;
 use crate::error::Result;
 use crate::graphql::audiobook::{Audiobook, Chapter};
 
+#[async_trait::async_trait]
 pub trait AudiobookProvider: Send + Sync {
     fn source_id(&self) -> AudiobookSource;
     async fn search_audiobooks(&self, query: &str, limit: i32, offset: i32) -> Result<Vec<Audiobook>>;

@@ -1,13 +1,23 @@
 use async_graphql::{Context, ErrorExtensions, Object, Result};
 
 use crate::audiobook::AudiobookSource as DomainAudiobookSource;
+use crate::domain::AudiobookProvider;
 use crate::error::AppError;
-use crate::graphql::helpers::random_sample;
-use crate::graphql::{
-    clamp_limit, get_app_context, require_audiobook_service, validate_id, validate_query,
-};
+use crate::graphql::schema::AppContext;
+use crate::graphql::{clamp_limit, get_app_context, validate_id, validate_query};
 
 use super::{Audiobook, Chapter};
+
+fn require_audiobook_provider(
+    app_ctx: &std::sync::Arc<AppContext>,
+) -> Result<&std::sync::Arc<dyn AudiobookProvider>> {
+    app_ctx.audiobook_providers.first().ok_or_else(|| {
+        AppError::FeatureDisabled(
+            "LibriVox is not configured. Set librivox in config.yaml.".into(),
+        )
+        .extend()
+    })
+}
 
 #[derive(Default)]
 pub struct AudiobookQuery;
@@ -23,14 +33,11 @@ impl AudiobookQuery {
         let query = validate_query(&query)?;
         let limit = clamp_limit(limit);
         let app_ctx = get_app_context(ctx)?;
-        let service = require_audiobook_service(app_ctx)?;
-
-        let results = service
+        let provider = require_audiobook_provider(app_ctx)?;
+        provider
             .search_audiobooks(&query, limit, 0)
             .await
-            .map_err(|e| e.extend())?;
-
-        Ok(results.into_iter().map(Audiobook::from).collect())
+            .map_err(|e| e.extend())
     }
 
     async fn audiobook(&self, ctx: &Context<'_>, id: String) -> Result<Option<Audiobook>> {
@@ -48,12 +55,11 @@ impl AudiobookQuery {
 
         match source {
             DomainAudiobookSource::LibriVox => {
-                let service = require_audiobook_service(app_ctx)?;
-                let audiobook = service
+                let provider = require_audiobook_provider(app_ctx)?;
+                provider
                     .get_audiobook(audiobook_id)
                     .await
-                    .map_err(|e| e.extend())?;
-                Ok(audiobook.map(Audiobook::from))
+                    .map_err(|e| e.extend())
             }
         }
     }
@@ -79,13 +85,11 @@ impl AudiobookQuery {
 
         match source {
             DomainAudiobookSource::LibriVox => {
-                let service = require_audiobook_service(app_ctx)?;
-                let chapters = service
+                let provider = require_audiobook_provider(app_ctx)?;
+                provider
                     .get_chapters(raw_id, limit)
                     .await
-                    .map_err(|e| e.extend())?;
-
-                Ok(chapters.into_iter().map(Chapter::from).collect())
+                    .map_err(|e| e.extend())
             }
         }
     }
@@ -97,37 +101,10 @@ impl AudiobookQuery {
     ) -> Result<Vec<Audiobook>> {
         let limit = clamp_limit(limit);
         let app_ctx = get_app_context(ctx)?;
-        let service = require_audiobook_service(app_ctx)?;
-
-        let audiobooks = random_librivox_audiobooks(service, limit)
+        let provider = require_audiobook_provider(app_ctx)?;
+        provider
+            .random_audiobooks(limit)
             .await
-            .map_err(|e| e.extend())?;
-
-        Ok(audiobooks.into_iter().map(Audiobook::from).collect())
+            .map_err(|e| e.extend())
     }
-}
-
-const LIBRIVOX_MAX_OFFSET: i64 = 20_000;
-const RANDOM_RETRY_ATTEMPTS: u32 = 3;
-
-pub(crate) async fn random_librivox_audiobooks(
-    service: &crate::services::AudiobookService,
-    limit: i32,
-) -> std::result::Result<Vec<crate::audiobook::Audiobook>, AppError> {
-    let fetch_limit = limit * 2;
-    let mut offset = rand::Rng::gen_range(&mut rand::thread_rng(), 0..LIBRIVOX_MAX_OFFSET as i32);
-
-    for _ in 0..RANDOM_RETRY_ATTEMPTS {
-        let results = service
-            .get_audiobooks_page(fetch_limit, offset)
-            .await?;
-
-        if !results.is_empty() {
-            return Ok(random_sample(results, limit as usize));
-        }
-
-        offset /= 2;
-    }
-
-    Ok(Vec::new())
 }

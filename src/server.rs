@@ -1,4 +1,5 @@
 use std::net::SocketAddr;
+use std::sync::Arc;
 use tokio::net::TcpListener;
 use tower_http::trace::TraceLayer;
 
@@ -6,6 +7,7 @@ use crate::audius::AudiusClient;
 use crate::auth::{AuthConfig, fetch_jwks};
 use crate::config::AppConfig;
 use crate::db::{DbConfig, create_pool};
+use crate::domain::{AudiobookProvider, MusicProvider, PodcastProvider};
 use crate::error::{AppError, Result};
 use crate::graphql::{AppContext, build_schema};
 use crate::librivox::LibriVoxClient;
@@ -13,6 +15,7 @@ use crate::musicbrainz::MusicBrainzClient;
 use crate::podcast_index::PodcastIndexClient;
 use crate::routes;
 use crate::services::{AudiobookService, MusicService, PodcastService};
+use crate::sources::{AudiusProvider, LibriVoxProvider, MusicBrainzProvider, PodcastIndexProvider};
 
 pub async fn run(config: &AppConfig) -> Result<()> {
     let auth_config = AuthConfig::from_env();
@@ -82,9 +85,15 @@ pub async fn run(config: &AppConfig) -> Result<()> {
     let music = MusicService::new(
         db_pool.clone(),
         musicbrainz_client,
-        audius_client,
+        None,
         config.database.cache_ttl_seconds,
     );
+
+    let mut music_providers: Vec<Arc<dyn MusicProvider>> =
+        vec![Arc::new(MusicBrainzProvider::new(music))];
+    if let Some(audius) = audius_client {
+        music_providers.push(Arc::new(AudiusProvider::new(audius)));
+    }
 
     let audiobook = if config.librivox.enabled {
         match LibriVoxClient::new(&config.librivox.base_url) {
@@ -105,6 +114,11 @@ pub async fn run(config: &AppConfig) -> Result<()> {
         tracing::info!("LibriVox integration disabled");
         None
     };
+
+    let mut audiobook_providers: Vec<Arc<dyn AudiobookProvider>> = vec![];
+    if let Some(abs) = audiobook {
+        audiobook_providers.push(Arc::new(LibriVoxProvider::new(abs)));
+    }
 
     let podcast = if config.podcast_index.enabled {
         match (
@@ -141,10 +155,15 @@ pub async fn run(config: &AppConfig) -> Result<()> {
         None
     };
 
+    let mut podcast_providers: Vec<Arc<dyn PodcastProvider>> = vec![];
+    if let Some(ps) = podcast {
+        podcast_providers.push(Arc::new(PodcastIndexProvider::new(ps)));
+    }
+
     let app_context = AppContext {
-        music,
-        podcast,
-        audiobook,
+        music_providers,
+        podcast_providers,
+        audiobook_providers,
     };
 
     let schema = build_schema(app_context);

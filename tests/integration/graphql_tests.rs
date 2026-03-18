@@ -1,6 +1,8 @@
 //! Full-stack integration tests (GraphQL -> Repository -> Database).
 //! Uses seeded data, no external API calls.
 
+use std::sync::Arc;
+
 use async_graphql::{EmptyMutation, EmptySubscription, Schema};
 use spoons_api::db::repositories::{
     ArtistRepository, RecordingRepository, ReleaseGroupRepository, ReleaseRepository,
@@ -8,6 +10,7 @@ use spoons_api::db::repositories::{
 use spoons_api::graphql::{AppContext, QueryRoot};
 use spoons_api::musicbrainz::MusicBrainzClient;
 use spoons_api::services::MusicService;
+use spoons_api::sources::MusicBrainzProvider;
 
 use crate::common::{
     TestDb, nevermind_release, nevermind_release_group, nirvana_artist, ok_computer_release,
@@ -21,14 +24,15 @@ async fn setup_graphql_test() -> (TestDb, Schema<QueryRoot, EmptyMutation, Empty
 
     let client = MusicBrainzClient::new("https://musicbrainz.org/ws/2")
         .expect("Failed to create MusicBrainz client");
+    let music = MusicService::new(test_db.pool.clone(), client, None, 86400);
     let app_context = AppContext {
-        music: MusicService::new(test_db.pool.clone(), client, None, 86400),
-        podcast: None,
-        audiobook: None,
+        music_providers: vec![Arc::new(MusicBrainzProvider::new(music))],
+        podcast_providers: vec![],
+        audiobook_providers: vec![],
     };
 
     let schema = Schema::build(QueryRoot::default(), EmptyMutation, EmptySubscription)
-        .data(std::sync::Arc::new(app_context))
+        .data(Arc::new(app_context))
         .finish();
 
     (test_db, schema)
@@ -46,14 +50,16 @@ async fn test_graphql_artist_query_from_cache() {
     let query = format!(
         r#"
         query {{
-            artist(id: "{}") {{
-                id
-                name
-                sortName
-                artistType
-                country
-                area {{
+            artist(id: "{}", source: MUSIC_BRAINZ) {{
+                ... on MusicBrainzArtist {{
+                    id
                     name
+                    sortName
+                    artistType
+                    country
+                    area {{
+                        name
+                    }}
                 }}
             }}
         }}

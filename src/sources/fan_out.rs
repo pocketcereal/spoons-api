@@ -123,7 +123,7 @@ mod tests {
         ];
         let timeout = Duration::from_secs(5);
 
-        let results = fan_out_search(&sources, timeout, |s| do_search(s)).await;
+        let results = fan_out_search(&sources, timeout, do_search).await;
 
         assert_eq!(results.len(), 3);
         assert!(results.contains(&"a".to_string()));
@@ -139,7 +139,7 @@ mod tests {
         ];
         let timeout = Duration::from_secs(5);
 
-        let results = fan_out_search(&sources, timeout, |s| do_search(s)).await;
+        let results = fan_out_search(&sources, timeout, do_search).await;
 
         assert_eq!(results, vec!["ok".to_string()]);
     }
@@ -152,7 +152,7 @@ mod tests {
         ];
         let timeout = Duration::from_millis(50);
 
-        let results = fan_out_search(&sources, timeout, |s| do_search(s)).await;
+        let results = fan_out_search(&sources, timeout, do_search).await;
 
         assert_eq!(results, vec!["fast".to_string()]);
     }
@@ -166,7 +166,7 @@ mod tests {
         ];
         let timeout = Duration::from_secs(5);
 
-        let result = fan_out_single(&sources, timeout, |s| do_lookup(s)).await;
+        let result = fan_out_single(&sources, timeout, do_lookup).await;
 
         assert!(matches!(result, Ok(Some(ref v)) if v == "found"));
     }
@@ -179,7 +179,7 @@ mod tests {
         ];
         let timeout = Duration::from_secs(5);
 
-        let result = fan_out_single(&sources, timeout, |s| do_lookup(s)).await;
+        let result = fan_out_single(&sources, timeout, do_lookup).await;
 
         assert!(matches!(result, Ok(None)));
     }

@@ -16,6 +16,7 @@ impl MusicBrainzProvider {
     }
 }
 
+#[async_trait::async_trait]
 impl MusicProvider for MusicBrainzProvider {
     fn source_id(&self) -> DataSource {
         DataSource::MusicBrainz

@@ -2,6 +2,7 @@ use crate::domain::DataSource;
 use crate::error::Result;
 use crate::graphql::types::{Artist, Track};
 
+#[async_trait::async_trait]
 pub trait MusicProvider: Send + Sync {
     fn source_id(&self) -> DataSource;
     async fn search_artists(&self, query: &str, limit: i32, offset: i32) -> Result<Vec<Artist>>;

@@ -2,6 +2,7 @@ use crate::error::Result;
 use crate::graphql::podcast::{Category, Episode, Podcast};
 use crate::podcast::PodcastSource;
 
+#[async_trait::async_trait]
 pub trait PodcastProvider: Send + Sync {
     fn source_id(&self) -> PodcastSource;
     async fn search_podcasts(&self, query: &str, limit: i32) -> Result<Vec<Podcast>>;

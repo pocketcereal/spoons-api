@@ -16,6 +16,7 @@ impl AudiusProvider {
     }
 }
 
+#[async_trait::async_trait]
 impl MusicProvider for AudiusProvider {
     fn source_id(&self) -> DataSource {
         DataSource::Audius

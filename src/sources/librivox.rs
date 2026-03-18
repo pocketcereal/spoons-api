@@ -18,6 +18,7 @@ impl LibriVoxProvider {
     }
 }
 
+#[async_trait::async_trait]
 impl AudiobookProvider for LibriVoxProvider {
     fn source_id(&self) -> AudiobookSource {
         AudiobookSource::LibriVox

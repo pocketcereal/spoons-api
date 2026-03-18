@@ -1,29 +1,13 @@
 use std::sync::Arc;
-use std::time::Duration;
 
 use async_graphql::{Context, Object, Result};
 
+use crate::domain::{AudiobookProvider, MusicProvider, PodcastProvider};
 use crate::error::AppError;
-use crate::graphql::audiobook::queries::random_librivox_audiobooks;
-use crate::graphql::schema::{
-    random_audius_artists, random_audius_tracks, random_musicbrainz_artists,
-    random_musicbrainz_tracks, search_audius_artists, search_audius_tracks, search_sources,
-    search_musicbrainz_artists, search_musicbrainz_tracks, AppContext,
-};
 use crate::graphql::{clamp_limit, get_app_context, validate_query};
+use crate::sources::{fan_out_search, SOURCE_TIMEOUT};
 
 use super::types::*;
-
-const DOMAIN_TIMEOUT: Duration = Duration::from_secs(10);
-
-fn gql_to_app_error(e: async_graphql::Error) -> AppError {
-    let detail = e
-        .source
-        .as_ref()
-        .and_then(|s| s.downcast_ref::<AppError>())
-        .map(|s| format!(": {}", s));
-    AppError::Internal(anyhow::anyhow!("{}{}", e.message, detail.unwrap_or_default()))
-}
 
 fn resolve_domains(domains: Option<Vec<ContentDomain>>) -> Vec<ContentDomain> {
     domains.unwrap_or_else(|| {
@@ -63,17 +47,32 @@ impl UnifiedQuery {
         let app_ctx = get_app_context(ctx)?;
         let domains = resolve_domains(domains);
 
+        let music_providers = if domains.contains(&ContentDomain::Music) {
+            &app_ctx.music_providers[..]
+        } else {
+            &[]
+        };
+        let podcast_providers = if domains.contains(&ContentDomain::Podcasts) {
+            &app_ctx.podcast_providers[..]
+        } else {
+            &[]
+        };
+        let audiobook_providers = if domains.contains(&ContentDomain::Audiobooks) {
+            &app_ctx.audiobook_providers[..]
+        } else {
+            &[]
+        };
+
         let (music, podcasts, audiobooks) = tokio::join!(
-            search_music(app_ctx, &domains, &query, limit),
-            search_podcasts(app_ctx, &domains, &query, limit),
-            search_audiobooks(app_ctx, &domains, &query, limit),
+            search_music(music_providers, &query, limit),
+            search_podcasts(podcast_providers, &query, limit),
+            search_audiobooks(audiobook_providers, &query, limit),
         );
 
         let mut results = SearchResults::default();
         set_or_warn(&mut results.music, music, "MUSIC");
         set_or_warn(&mut results.podcasts, podcasts, "PODCASTS");
         set_or_warn(&mut results.audiobooks, audiobooks, "AUDIOBOOKS");
-
         Ok(results)
     }
 
@@ -87,217 +86,133 @@ impl UnifiedQuery {
         let app_ctx = get_app_context(ctx)?;
         let domains = resolve_domains(domains);
 
+        let music_providers = if domains.contains(&ContentDomain::Music) {
+            &app_ctx.music_providers[..]
+        } else {
+            &[]
+        };
+        let podcast_providers = if domains.contains(&ContentDomain::Podcasts) {
+            &app_ctx.podcast_providers[..]
+        } else {
+            &[]
+        };
+        let audiobook_providers = if domains.contains(&ContentDomain::Audiobooks) {
+            &app_ctx.audiobook_providers[..]
+        } else {
+            &[]
+        };
+
         let (music, podcasts, audiobooks) = tokio::join!(
-            random_music(app_ctx, &domains, limit),
-            random_podcasts(app_ctx, &domains, limit),
-            random_audiobooks(app_ctx, &domains, limit),
+            random_music(music_providers, limit),
+            random_podcasts(podcast_providers, limit),
+            random_audiobooks(audiobook_providers, limit),
         );
 
         let mut results = RandomResults::default();
         set_or_warn(&mut results.music, music, "MUSIC");
         set_or_warn(&mut results.podcasts, podcasts, "PODCASTS");
         set_or_warn(&mut results.audiobooks, audiobooks, "AUDIOBOOKS");
-
         Ok(results)
     }
 }
 
-// ==================== Search Helpers ====================
-
 async fn search_music(
-    app_ctx: &Arc<AppContext>,
-    domains: &[ContentDomain],
+    providers: &[Arc<dyn MusicProvider>],
     query: &str,
     limit: i32,
 ) -> std::result::Result<Option<MusicSearchResults>, AppError> {
-    if !domains.contains(&ContentDomain::Music) {
+    if providers.is_empty() {
         return Ok(None);
     }
-
-    // No outer timeout — search_sources already wraps each sub-source
-    // (MusicBrainz, Audius) in SOURCE_QUERY_TIMEOUT individually.
     let (artists, tracks) = tokio::join!(
-        search_sources(
-            None,
-            search_musicbrainz_artists(app_ctx, query, limit, 0),
-            search_audius_artists(app_ctx, query, limit, 0),
-            "artist",
-        ),
-        search_sources(
-            None,
-            search_musicbrainz_tracks(app_ctx, query, limit, 0),
-            search_audius_tracks(app_ctx, query, limit, 0),
-            "track",
-        ),
+        fan_out_search(providers, SOURCE_TIMEOUT, |p| {
+            let q = query.to_string();
+            async move { p.search_artists(&q, limit, 0).await }
+        }),
+        fan_out_search(providers, SOURCE_TIMEOUT, |p| {
+            let q = query.to_string();
+            async move { p.search_tracks(&q, limit, 0).await }
+        }),
     );
-
-    Ok(Some(MusicSearchResults {
-        artists: artists.map_err(gql_to_app_error)?,
-        tracks: tracks.map_err(gql_to_app_error)?,
-    }))
+    Ok(Some(MusicSearchResults { artists, tracks }))
 }
 
 async fn search_podcasts(
-    app_ctx: &Arc<AppContext>,
-    domains: &[ContentDomain],
+    providers: &[Arc<dyn PodcastProvider>],
     query: &str,
     limit: i32,
 ) -> std::result::Result<Option<PodcastSearchResults>, AppError> {
-    if !domains.contains(&ContentDomain::Podcasts) {
+    if providers.is_empty() {
         return Ok(None);
     }
-
-    let service = match app_ctx.podcast.as_ref() {
-        Some(s) => s,
-        None => return Ok(None),
-    };
-
-    let result = tokio::time::timeout(DOMAIN_TIMEOUT, async {
-        let podcasts = service
-            .search_podcasts(query, limit)
-            .await?
-            .into_iter()
-            .map(crate::graphql::podcast::Podcast::from)
-            .collect();
-        Ok::<_, AppError>(PodcastSearchResults { podcasts })
+    let podcasts = fan_out_search(providers, SOURCE_TIMEOUT, |p| {
+        let q = query.to_string();
+        async move { p.search_podcasts(&q, limit).await }
     })
     .await;
-
-    match result {
-        Ok(Ok(r)) => Ok(Some(r)),
-        Ok(Err(e)) => Err(e),
-        Err(_) => Err(AppError::Internal(anyhow::anyhow!("Podcast search timed out"))),
-    }
+    Ok(Some(PodcastSearchResults { podcasts }))
 }
 
 async fn search_audiobooks(
-    app_ctx: &Arc<AppContext>,
-    domains: &[ContentDomain],
+    providers: &[Arc<dyn AudiobookProvider>],
     query: &str,
     limit: i32,
 ) -> std::result::Result<Option<AudiobookSearchResults>, AppError> {
-    if !domains.contains(&ContentDomain::Audiobooks) {
+    if providers.is_empty() {
         return Ok(None);
     }
-
-    let service = match app_ctx.audiobook.as_ref() {
-        Some(s) => s,
-        None => return Ok(None),
-    };
-
-    let result = tokio::time::timeout(DOMAIN_TIMEOUT, async {
-        let audiobooks = service
-            .search_audiobooks(query, limit, 0)
-            .await?
-            .into_iter()
-            .map(crate::graphql::audiobook::Audiobook::from)
-            .collect();
-        Ok::<_, AppError>(AudiobookSearchResults { audiobooks })
+    let audiobooks = fan_out_search(providers, SOURCE_TIMEOUT, |p| {
+        let q = query.to_string();
+        async move { p.search_audiobooks(&q, limit, 0).await }
     })
     .await;
-
-    match result {
-        Ok(Ok(r)) => Ok(Some(r)),
-        Ok(Err(e)) => Err(e),
-        Err(_) => Err(AppError::Internal(anyhow::anyhow!("Audiobook search timed out"))),
-    }
+    Ok(Some(AudiobookSearchResults { audiobooks }))
 }
 
-// ==================== Random Helpers ====================
-
 async fn random_music(
-    app_ctx: &Arc<AppContext>,
-    domains: &[ContentDomain],
+    providers: &[Arc<dyn MusicProvider>],
     limit: i32,
 ) -> std::result::Result<Option<MusicRandomResults>, AppError> {
-    if !domains.contains(&ContentDomain::Music) {
+    if providers.is_empty() {
         return Ok(None);
     }
-
-    // No outer timeout — search_sources already wraps each sub-source individually.
     let (artists, tracks) = tokio::join!(
-        search_sources(
-            None,
-            random_musicbrainz_artists(app_ctx, limit),
-            random_audius_artists(app_ctx, limit),
-            "random artist",
-        ),
-        search_sources(
-            None,
-            random_musicbrainz_tracks(app_ctx, limit),
-            random_audius_tracks(app_ctx, limit),
-            "random track",
-        ),
+        fan_out_search(providers, SOURCE_TIMEOUT, |p| {
+            async move { p.random_artists(limit).await }
+        }),
+        fan_out_search(providers, SOURCE_TIMEOUT, |p| {
+            async move { p.random_tracks(limit).await }
+        }),
     );
-
-    Ok(Some(MusicRandomResults {
-        artists: artists.map_err(gql_to_app_error)?,
-        tracks: tracks.map_err(gql_to_app_error)?,
-    }))
+    Ok(Some(MusicRandomResults { artists, tracks }))
 }
 
 async fn random_podcasts(
-    app_ctx: &Arc<AppContext>,
-    domains: &[ContentDomain],
+    providers: &[Arc<dyn PodcastProvider>],
     limit: i32,
 ) -> std::result::Result<Option<PodcastRandomResults>, AppError> {
-    if !domains.contains(&ContentDomain::Podcasts) {
+    if providers.is_empty() {
         return Ok(None);
     }
-
-    let service = match app_ctx.podcast.as_ref() {
-        Some(s) => s,
-        None => return Ok(None),
-    };
-
-    let result = tokio::time::timeout(DOMAIN_TIMEOUT, async {
-        let episodes = service
-            .client()
-            .random_episodes(limit, None, None)
-            .await?
-            .into_iter()
-            .map(crate::graphql::podcast::Episode::from)
-            .collect();
-        Ok::<_, AppError>(PodcastRandomResults { episodes })
+    let episodes = fan_out_search(providers, SOURCE_TIMEOUT, |p| {
+        async move { p.random_episodes(limit, None, None).await }
     })
     .await;
-
-    match result {
-        Ok(Ok(r)) => Ok(Some(r)),
-        Ok(Err(e)) => Err(e),
-        Err(_) => Err(AppError::Internal(anyhow::anyhow!("Podcast random timed out"))),
-    }
+    Ok(Some(PodcastRandomResults { episodes }))
 }
 
 async fn random_audiobooks(
-    app_ctx: &Arc<AppContext>,
-    domains: &[ContentDomain],
+    providers: &[Arc<dyn AudiobookProvider>],
     limit: i32,
 ) -> std::result::Result<Option<AudiobookRandomResults>, AppError> {
-    if !domains.contains(&ContentDomain::Audiobooks) {
+    if providers.is_empty() {
         return Ok(None);
     }
-
-    let service = match app_ctx.audiobook.as_ref() {
-        Some(s) => s,
-        None => return Ok(None),
-    };
-
-    let result = tokio::time::timeout(DOMAIN_TIMEOUT, async {
-        let audiobooks = random_librivox_audiobooks(service, limit)
-            .await?
-            .into_iter()
-            .map(crate::graphql::audiobook::Audiobook::from)
-            .collect();
-        Ok::<_, AppError>(AudiobookRandomResults { audiobooks })
+    let audiobooks = fan_out_search(providers, SOURCE_TIMEOUT, |p| {
+        async move { p.random_audiobooks(limit).await }
     })
     .await;
-
-    match result {
-        Ok(Ok(r)) => Ok(Some(r)),
-        Ok(Err(e)) => Err(e),
-        Err(_) => Err(AppError::Internal(anyhow::anyhow!("Audiobook random timed out"))),
-    }
+    Ok(Some(AudiobookRandomResults { audiobooks }))
 }
 
 #[cfg(test)]
@@ -349,15 +264,5 @@ mod tests {
         let err = AppError::Internal(anyhow::anyhow!("boom"));
         set_or_warn(&mut field, Err(err), "TEST");
         assert_eq!(field, None);
-    }
-
-    #[test]
-    fn test_gql_to_app_error_preserves_message() {
-        let gql_err = async_graphql::Error::new("something went wrong");
-        let app_err = gql_to_app_error(gql_err);
-        match app_err {
-            AppError::Internal(e) => assert!(e.to_string().contains("something went wrong")),
-            other => panic!("Expected Internal, got {:?}", other),
-        }
     }
 }
