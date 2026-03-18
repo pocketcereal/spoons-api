@@ -64,7 +64,7 @@ tasks:
       - cargo watch -x 'run -- start --config config.yaml'
 
   dev:
-    desc: Run development serve
+    desc: Run development server
     cmds:
       - lsof -ti:4000 | xargs kill -9 2>/dev/null || true
       - cargo run -- start --config config.yaml
