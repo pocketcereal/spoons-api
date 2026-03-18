@@ -224,9 +224,14 @@ tasks:
         FAIL=0
         RESULTS="[]"
 
+        # run_query NAME QUERY [REQUIRED_FIELDS]
+        # REQUIRED_FIELDS: optional jq path + comma-separated field names
+        #   e.g. ".data.searchArtists[0]|id,name,source"
+        #   Validates that the first item at the jq path has all listed fields (non-null).
         run_query() {
           local NAME="$1"
           local QUERY="$2"
+          local REQUIRED_FIELDS="${3:-}"
           RESPONSE=$(curl -s -w "\n%{http_code}" "http://localhost:{{.PORT}}/graphql" \
             -H "Authorization: Bearer $TOKEN" \
             -H "Content-Type: application/json" \
@@ -236,9 +241,34 @@ tasks:
           HAS_ERRORS=$(echo "$BODY" | jq -r 'if .errors then "true" else "false" end' 2>/dev/null || echo "true")
 
           if [ "$HTTP_CODE" = "200" ] && [ "$HAS_ERRORS" = "false" ]; then
-            STATUS="pass"
-            PASS=$((PASS + 1))
-            echo "  ✓ $NAME"
+            # Validate required fields if specified
+            if [ -n "$REQUIRED_FIELDS" ]; then
+              local JQ_PATH="${REQUIRED_FIELDS%%|*}"
+              local FIELDS="${REQUIRED_FIELDS##*|}"
+              local MISSING=""
+              local OLD_IFS="$IFS"
+              IFS=','
+              for field in $FIELDS; do
+                local VAL=$(echo "$BODY" | jq -r "$JQ_PATH.$field // \"__NULL__\"" 2>/dev/null)
+                if [ "$VAL" = "__NULL__" ] || [ "$VAL" = "null" ] || [ -z "$VAL" ]; then
+                  MISSING="${MISSING}${field},"
+                fi
+              done
+              IFS="$OLD_IFS"
+              if [ -n "$MISSING" ]; then
+                STATUS="fail"
+                FAIL=$((FAIL + 1))
+                echo "  ✗ $NAME — missing fields: ${MISSING%,}"
+              else
+                STATUS="pass"
+                PASS=$((PASS + 1))
+                echo "  ✓ $NAME"
+              fi
+            else
+              STATUS="pass"
+              PASS=$((PASS + 1))
+              echo "  ✓ $NAME"
+            fi
           else
             STATUS="fail"
             FAIL=$((FAIL + 1))
@@ -258,97 +288,128 @@ tasks:
         echo ""
 
         run_query "version" \
-          '{"query":"{ version }"}'
+          '{"query":"{ version }"}' \
+          ".data|version"
 
         run_query "search_artists_musicbrainz" \
-          '{"query":"{ searchArtists(query: \"Radiohead\", source: MUSIC_BRAINZ, limit: 3) { __typename ... on MusicBrainzArtist { id name source sourceId country artistType } } }"}'
+          '{"query":"{ searchArtists(query: \"Radiohead\", source: MUSIC_BRAINZ, limit: 3) { __typename ... on MusicBrainzArtist { id name source sourceId country artistType } } }"}' \
+          ".data.searchArtists[0]|id,name,source,sourceId"
 
         run_query "search_tracks_musicbrainz" \
-          '{"query":"{ searchTracks(query: \"Paranoid Android\", source: MUSIC_BRAINZ, limit: 3) { __typename ... on MusicBrainzTrack { id title source sourceId artistName durationMs } } }"}'
+          '{"query":"{ searchTracks(query: \"Paranoid Android\", source: MUSIC_BRAINZ, limit: 3) { __typename ... on MusicBrainzTrack { id title source sourceId artistName durationMs } } }"}' \
+          ".data.searchTracks[0]|id,title,source,sourceId"
 
         run_query "search_artists_audius" \
-          '{"query":"{ searchArtists(query: \"deadmau5\", source: AUDIUS, limit: 3) { __typename ... on AudiusArtist { id name source sourceId handle isVerified } } }"}'
+          '{"query":"{ searchArtists(query: \"deadmau5\", source: AUDIUS, limit: 3) { __typename ... on AudiusArtist { id name source sourceId handle isVerified } } }"}' \
+          ".data.searchArtists[0]|id,name,source,sourceId,handle"
 
         run_query "search_tracks_audius" \
-          '{"query":"{ searchTracks(query: \"Strobe\", source: AUDIUS, limit: 3) { __typename ... on AudiusTrack { id title source sourceId artistName genre } } }"}'
+          '{"query":"{ searchTracks(query: \"Strobe\", source: AUDIUS, limit: 3) { __typename ... on AudiusTrack { id title source sourceId artistName genre } } }"}' \
+          ".data.searchTracks[0]|id,title,source,sourceId"
 
         run_query "search_artists_multi_source" \
-          '{"query":"{ searchArtists(query: \"deadmau5\", limit: 5) { __typename ... on MusicBrainzArtist { name source } ... on AudiusArtist { name source handle } } }"}'
+          '{"query":"{ searchArtists(query: \"deadmau5\", limit: 5) { __typename ... on MusicBrainzArtist { name source } ... on AudiusArtist { name source handle } } }"}' \
+          ".data.searchArtists[0]|__typename,source"
 
         run_query "search_podcasts" \
-          '{"query":"{ searchPodcasts(query: \"technology\", limit: 3) { ... on PodcastIndexPodcast { id title author source } } }"}'
+          '{"query":"{ searchPodcasts(query: \"technology\", limit: 3) { ... on PodcastIndexPodcast { id title author source } } }"}' \
+          ".data.searchPodcasts[0]|id,title,source"
 
         run_query "search_podcasts_by_title" \
-          '{"query":"{ searchPodcastsByTitle(title: \"Serial\", limit: 3) { ... on PodcastIndexPodcast { id title author } } }"}'
+          '{"query":"{ searchPodcastsByTitle(title: \"Serial\", limit: 3) { ... on PodcastIndexPodcast { id title author } } }"}' \
+          ".data.searchPodcastsByTitle[0]|id,title"
 
         run_query "trending_podcasts" \
-          '{"query":"{ trendingPodcasts(limit: 3) { ... on PodcastIndexPodcast { id title author } } }"}'
+          '{"query":"{ trendingPodcasts(limit: 3) { ... on PodcastIndexPodcast { id title author } } }"}' \
+          ".data.trendingPodcasts[0]|id,title"
 
         run_query "podcast_categories" \
-          '{"query":"{ podcastCategories { ... on Category { id name } } }"}'
+          '{"query":"{ podcastCategories { ... on Category { id name } } }"}' \
+          ".data.podcastCategories[0]|id,name"
 
         run_query "get_artist_by_id" \
-          '{"query":"{ artist(id: \"a74b1b7f-71a5-4011-9441-d0b5e4122711\", source: MUSIC_BRAINZ) { ... on MusicBrainzArtist { id name country artistType } } }"}'
+          '{"query":"{ artist(id: \"a74b1b7f-71a5-4011-9441-d0b5e4122711\", source: MUSIC_BRAINZ) { ... on MusicBrainzArtist { id name country artistType } } }"}' \
+          ".data.artist|id,name"
 
         run_query "get_podcast_by_id" \
-          '{"query":"{ podcast(id: \"podcastindex:522889\") { ... on PodcastIndexPodcast { id title author feedUrl } } }"}'
+          '{"query":"{ podcast(id: \"podcastindex:522889\") { ... on PodcastIndexPodcast { id title author feedUrl } } }"}' \
+          ".data.podcast|id,title,feedUrl"
 
         run_query "get_episodes" \
-          '{"query":"{ episodes(podcastId: \"podcastindex:522889\", limit: 3) { ... on PodcastIndexEpisode { id title podcastId durationSeconds } } }"}'
+          '{"query":"{ episodes(podcastId: \"podcastindex:522889\", limit: 3) { ... on PodcastIndexEpisode { id title podcastId durationSeconds } } }"}' \
+          ".data.episodes[0]|id,title,podcastId"
 
         run_query "random_episodes" \
-          '{"query":"{ randomEpisodes(limit: 3, language: \"en\") { ... on PodcastIndexEpisode { id title podcastId } } }"}'
+          '{"query":"{ randomEpisodes(limit: 3, language: \"en\") { ... on PodcastIndexEpisode { id title podcastId } } }"}' \
+          ".data.randomEpisodes[0]|id,title,podcastId"
 
         run_query "search_audiobooks" \
-          '{"query":"{ searchAudiobooks(query: \"pride and prejudice\", limit: 3) { ... on LibriVoxAudiobook { id title source } } }"}'
+          '{"query":"{ searchAudiobooks(query: \"pride and prejudice\", limit: 3) { ... on LibriVoxAudiobook { id title source } } }"}' \
+          ".data.searchAudiobooks[0]|id,title,source"
 
         run_query "get_audiobook_by_id" \
-          '{"query":"{ audiobook(id: \"librivox:128\") { ... on LibriVoxAudiobook { id title authors { firstName lastName } } } }"}'
+          '{"query":"{ audiobook(id: \"librivox:128\") { ... on LibriVoxAudiobook { id title authors { firstName lastName } } } }"}' \
+          ".data.audiobook|id,title"
 
         run_query "get_chapters" \
-          '{"query":"{ chapters(audiobookId: \"librivox:128\", limit: 5) { ... on LibriVoxChapter { id title sectionNumber listenUrl } } }"}'
+          '{"query":"{ chapters(audiobookId: \"librivox:128\", limit: 5) { ... on LibriVoxChapter { id title sectionNumber listenUrl } } }"}' \
+          ".data.chapters[0]|id,title,sectionNumber,listenUrl"
 
         run_query "random_audiobooks" \
-          '{"query":"{ randomAudiobooks(limit: 3) { ... on LibriVoxAudiobook { id title source } } }"}'
+          '{"query":"{ randomAudiobooks(limit: 3) { ... on LibriVoxAudiobook { id title source } } }"}' \
+          ".data.randomAudiobooks[0]|id,title,source"
 
         run_query "search_tracks_multi_source" \
-          '{"query":"{ searchTracks(query: \"Around the World\", limit: 3) { __typename ... on MusicBrainzTrack { id title artistName } ... on AudiusTrack { id title artistName } } }"}'
+          '{"query":"{ searchTracks(query: \"Around the World\", limit: 3) { __typename ... on MusicBrainzTrack { id title artistName } ... on AudiusTrack { id title artistName } } }"}' \
+          ".data.searchTracks[0]|__typename,id,title"
 
         run_query "random_tracks" \
-          '{"query":"{ randomTracks(limit: 5) { __typename ... on MusicBrainzTrack { id title source artistName } ... on AudiusTrack { id title source artistName genre } } }"}'
+          '{"query":"{ randomTracks(limit: 5) { __typename ... on MusicBrainzTrack { id title source artistName } ... on AudiusTrack { id title source artistName genre } } }"}' \
+          ".data.randomTracks[0]|__typename,id,title,source"
 
         run_query "random_tracks_audius" \
-          '{"query":"{ randomTracks(source: AUDIUS, limit: 3) { __typename ... on AudiusTrack { id title source artistName } } }"}'
+          '{"query":"{ randomTracks(source: AUDIUS, limit: 3) { __typename ... on AudiusTrack { id title source artistName } } }"}' \
+          ".data.randomTracks[0]|id,title,source"
 
         run_query "random_tracks_musicbrainz" \
-          '{"query":"{ randomTracks(source: MUSIC_BRAINZ, limit: 3) { __typename ... on MusicBrainzTrack { id title source artistName } } }"}'
+          '{"query":"{ randomTracks(source: MUSIC_BRAINZ, limit: 3) { __typename ... on MusicBrainzTrack { id title source artistName } } }"}' \
+          ".data.randomTracks[0]|id,title,source"
 
         run_query "random_artists" \
-          '{"query":"{ randomArtists(limit: 5) { __typename ... on MusicBrainzArtist { id name source country } ... on AudiusArtist { id name source handle } } }"}'
+          '{"query":"{ randomArtists(limit: 5) { __typename ... on MusicBrainzArtist { id name source country } ... on AudiusArtist { id name source handle } } }"}' \
+          ".data.randomArtists[0]|__typename,id,source"
 
         run_query "random_artists_audius" \
-          '{"query":"{ randomArtists(source: AUDIUS, limit: 3) { __typename ... on AudiusArtist { id name source handle } } }"}'
+          '{"query":"{ randomArtists(source: AUDIUS, limit: 3) { __typename ... on AudiusArtist { id name source handle } } }"}' \
+          ".data.randomArtists[0]|id,name,source"
 
         run_query "random_artists_musicbrainz" \
-          '{"query":"{ randomArtists(source: MUSIC_BRAINZ, limit: 3) { __typename ... on MusicBrainzArtist { id name source country } } }"}'
+          '{"query":"{ randomArtists(source: MUSIC_BRAINZ, limit: 3) { __typename ... on MusicBrainzArtist { id name source country } } }"}' \
+          ".data.randomArtists[0]|id,name,source"
 
         run_query "search_artists_jamendo" \
-          '{"query":"{ searchArtists(source: JAMENDO, query: \"electronic\", limit: 3) { __typename ... on JamendoArtist { id name source } } }"}'
+          '{"query":"{ searchArtists(source: JAMENDO, query: \"electronic\", limit: 3) { __typename ... on JamendoArtist { id name source sourceId imageUrl } } }"}' \
+          ".data.searchArtists[0]|id,name,source,sourceId"
 
         run_query "search_tracks_jamendo" \
-          '{"query":"{ searchTracks(source: JAMENDO, query: \"ambient\", limit: 3) { __typename ... on JamendoTrack { id title source audioUrl } } }"}'
+          '{"query":"{ searchTracks(source: JAMENDO, query: \"ambient\", limit: 3) { __typename ... on JamendoTrack { id title source sourceId audioUrl artistName } } }"}' \
+          ".data.searchTracks[0]|id,title,source,sourceId,audioUrl"
 
         run_query "unified_search_all" \
-          '{"query":"{ search(query: \"pride\") { music { artists { ... on MusicBrainzArtist { id name } } tracks { ... on MusicBrainzTrack { id title } } } podcasts { podcasts { ... on PodcastIndexPodcast { id title } } } audiobooks { audiobooks { ... on LibriVoxAudiobook { id title } } } } }"}'
+          '{"query":"{ search(query: \"pride\") { music { artists { ... on MusicBrainzArtist { id name } } tracks { ... on MusicBrainzTrack { id title } } } podcasts { podcasts { ... on PodcastIndexPodcast { id title } } } audiobooks { audiobooks { ... on LibriVoxAudiobook { id title } } } } }"}' \
+          ".data.search|music,podcasts,audiobooks"
 
         run_query "unified_search_single_domain" \
-          '{"query":"{ search(query: \"radiohead\", domains: [MUSIC], limit: 3) { music { artists { ... on MusicBrainzArtist { id name } } tracks { ... on MusicBrainzTrack { id title } } } } }"}'
+          '{"query":"{ search(query: \"radiohead\", domains: [MUSIC], limit: 3) { music { artists { ... on MusicBrainzArtist { id name } } tracks { ... on MusicBrainzTrack { id title } } } } }"}' \
+          ".data.search.music|artists,tracks"
 
         run_query "unified_random_all" \
-          '{"query":"{ random(limit: 3) { music { artists { ... on MusicBrainzArtist { id name } } tracks { ... on MusicBrainzTrack { id title } } } podcasts { episodes { ... on PodcastIndexEpisode { id title } } } audiobooks { audiobooks { ... on LibriVoxAudiobook { id title } } } } }"}'
+          '{"query":"{ random(limit: 3) { music { artists { ... on MusicBrainzArtist { id name } } tracks { ... on MusicBrainzTrack { id title } } } podcasts { episodes { ... on PodcastIndexEpisode { id title } } } audiobooks { audiobooks { ... on LibriVoxAudiobook { id title } } } } }"}' \
+          ".data.random|music,podcasts,audiobooks"
 
         run_query "unified_random_audiobooks_only" \
-          '{"query":"{ random(domains: [AUDIOBOOKS], limit: 3) { audiobooks { audiobooks { ... on LibriVoxAudiobook { id title } } } } }"}'
+          '{"query":"{ random(domains: [AUDIOBOOKS], limit: 3) { audiobooks { audiobooks { ... on LibriVoxAudiobook { id title } } } } }"}' \
+          ".data.random.audiobooks|audiobooks"
 
         TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
         SUMMARY=$(jq -n \
