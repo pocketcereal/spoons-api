@@ -36,6 +36,54 @@ diesel::table! {
 }
 
 diesel::table! {
+    audiobook_search_cache (query_hash) {
+        query_hash -> Text,
+        query_text -> Text,
+        audiobook_ids -> Array<Nullable<Int8>>,
+        total_count -> Int4,
+        cached_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    audiobooks (id) {
+        id -> Int8,
+        title -> Text,
+        description -> Nullable<Text>,
+        language -> Nullable<Text>,
+        copyright_year -> Nullable<Text>,
+        num_sections -> Nullable<Int4>,
+        total_time -> Nullable<Text>,
+        total_time_secs -> Nullable<Int8>,
+        authors -> Jsonb,
+        url_text_source -> Nullable<Text>,
+        url_zip_file -> Nullable<Text>,
+        url_librivox -> Nullable<Text>,
+        url_iarchive -> Nullable<Text>,
+        coverart_url -> Nullable<Text>,
+        coverart_thumbnail -> Nullable<Text>,
+        cached_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
+    chapters (id) {
+        id -> Int8,
+        audiobook_id -> Int8,
+        title -> Text,
+        section_number -> Int4,
+        duration -> Nullable<Text>,
+        duration_seconds -> Nullable<Int4>,
+        listen_url -> Text,
+        language -> Nullable<Text>,
+        readers -> Jsonb,
+        cached_at -> Timestamptz,
+        updated_at -> Timestamptz,
+    }
+}
+
+diesel::table! {
     episodes (id) {
         id -> Int8,
         podcast_id -> Int8,
@@ -166,6 +214,7 @@ diesel::table! {
 }
 
 diesel::joinable!(artists -> areas (area_id));
+diesel::joinable!(chapters -> audiobooks (audiobook_id));
 diesel::joinable!(episodes -> podcasts (podcast_id));
 diesel::joinable!(releases -> release_groups (release_group_id));
 
@@ -173,6 +222,9 @@ diesel::allow_tables_to_appear_in_same_query!(
     areas,
     artist_search_cache,
     artists,
+    audiobook_search_cache,
+    audiobooks,
+    chapters,
     episodes,
     podcast_search_cache,
     podcast_trending_cache,

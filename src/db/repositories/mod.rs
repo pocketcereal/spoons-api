@@ -1,4 +1,6 @@
 mod artist;
+mod audiobook;
+mod chapter;
 mod episode;
 mod podcast;
 mod recording;
@@ -7,6 +9,8 @@ mod release_group;
 mod search_cache;
 
 pub use artist::ArtistRepository;
+pub use audiobook::AudiobookRepository;
+pub use chapter::ChapterRepository;
 pub use episode::EpisodeRepository;
 pub use podcast::PodcastRepository;
 pub use recording::RecordingRepository;

@@ -6,20 +6,21 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::db::models::{
-    ArtistSearchCacheRow, NewArtistSearchCacheRow, NewPodcastSearchCacheRow,
-    NewRecordingSearchCacheRow, NewReleaseGroupSearchCacheRow, NewReleaseSearchCacheRow,
-    PodcastSearchCacheRow, RecordingSearchCacheRow, ReleaseGroupSearchCacheRow,
-    ReleaseSearchCacheRow,
+    ArtistSearchCacheRow, AudiobookSearchCacheRow, NewArtistSearchCacheRow,
+    NewAudiobookSearchCacheRow, NewPodcastSearchCacheRow, NewRecordingSearchCacheRow,
+    NewReleaseGroupSearchCacheRow, NewReleaseSearchCacheRow, PodcastSearchCacheRow,
+    RecordingSearchCacheRow, ReleaseGroupSearchCacheRow, ReleaseSearchCacheRow,
 };
 use crate::db::repositories::{
-    ArtistRepository, PodcastRepository, RecordingRepository, ReleaseGroupRepository,
-    ReleaseRepository,
+    ArtistRepository, AudiobookRepository, PodcastRepository, RecordingRepository,
+    ReleaseGroupRepository, ReleaseRepository,
 };
 use crate::db::schema::{
-    artist_search_cache, podcast_search_cache, recording_search_cache, release_group_search_cache,
-    release_search_cache,
+    artist_search_cache, audiobook_search_cache, podcast_search_cache, recording_search_cache,
+    release_group_search_cache, release_search_cache,
 };
 use crate::db::{DbPool, db_error, get_conn, min_cached_at};
+use crate::audiobook::Audiobook;
 use crate::error::Result;
 use crate::musicbrainz::{Artist, Recording, Release, ReleaseGroup};
 use crate::podcast::Podcast;
@@ -379,6 +380,85 @@ impl SearchCacheRepository {
             .execute(&mut conn)
             .await
             .map_err(db_error("Failed to cache release group search"))?;
+
+        Ok(())
+    }
+
+    // ==================== Audiobook Search ====================
+
+    pub async fn get_audiobook_search(
+        pool: &DbPool,
+        query: &str,
+        limit: i32,
+        offset: i32,
+        cache_ttl_seconds: i64,
+    ) -> Result<Option<Vec<Audiobook>>> {
+        let query_hash = hash_query(query, limit, offset);
+        let min_cached_at = min_cached_at(cache_ttl_seconds)?;
+        let mut conn = get_conn(pool).await?;
+
+        let cache_row: Option<AudiobookSearchCacheRow> = audiobook_search_cache::table
+            .filter(audiobook_search_cache::query_hash.eq(&query_hash))
+            .filter(audiobook_search_cache::cached_at.gt(min_cached_at))
+            .select(AudiobookSearchCacheRow::as_select())
+            .first(&mut conn)
+            .await
+            .optional()
+            .map_err(db_error("Failed to get audiobook search cache"))?;
+
+        match cache_row {
+            Some(row) => {
+                let audiobook_ids: Vec<i64> = row.audiobook_ids.into_iter().flatten().collect();
+                let audiobooks = AudiobookRepository::get_by_ids(pool, &audiobook_ids).await?;
+                let by_id: HashMap<i64, Audiobook> =
+                    audiobooks.into_iter().map(|a| (a.id, a)).collect();
+                let ordered: Vec<Audiobook> = audiobook_ids
+                    .iter()
+                    .filter_map(|id| by_id.get(id).cloned())
+                    .collect();
+                if !all_ids_resolved("audiobook", audiobook_ids.len(), ordered.len()) {
+                    return Ok(None);
+                }
+                Ok(Some(ordered))
+            }
+            None => Ok(None),
+        }
+    }
+
+    pub async fn cache_audiobook_search(
+        pool: &DbPool,
+        query: &str,
+        limit: i32,
+        offset: i32,
+        audiobooks: &[Audiobook],
+    ) -> Result<()> {
+        AudiobookRepository::upsert_many(pool, audiobooks).await?;
+
+        let audiobook_ids: Vec<i64> = audiobooks.iter().map(|a| a.id).collect();
+
+        let query_hash = hash_query(query, limit, offset);
+
+        let new_cache = NewAudiobookSearchCacheRow {
+            query_hash: query_hash.clone(),
+            query_text: query.to_string(),
+            audiobook_ids,
+            total_count: audiobooks.len() as i32,
+        };
+
+        let mut conn = get_conn(pool).await?;
+
+        diesel::insert_into(audiobook_search_cache::table)
+            .values(&new_cache)
+            .on_conflict(audiobook_search_cache::query_hash)
+            .do_update()
+            .set((
+                audiobook_search_cache::audiobook_ids.eq(&new_cache.audiobook_ids),
+                audiobook_search_cache::total_count.eq(&new_cache.total_count),
+                audiobook_search_cache::cached_at.eq(Utc::now()),
+            ))
+            .execute(&mut conn)
+            .await
+            .map_err(db_error("Failed to cache audiobook search"))?;
 
         Ok(())
     }

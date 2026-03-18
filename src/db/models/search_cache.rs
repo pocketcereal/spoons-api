@@ -5,8 +5,8 @@ use diesel::prelude::*;
 use uuid::Uuid;
 
 use crate::db::schema::{
-    artist_search_cache, podcast_search_cache, recording_search_cache, release_group_search_cache,
-    release_search_cache,
+    artist_search_cache, audiobook_search_cache, podcast_search_cache, recording_search_cache,
+    release_group_search_cache, release_search_cache,
 };
 
 /// Database row for artist_search_cache table.
@@ -99,6 +99,29 @@ pub struct NewReleaseGroupSearchCacheRow {
     pub query_text: String,
     pub release_group_ids: Vec<Uuid>,
     pub total_count: i64,
+}
+
+/// Database row for audiobook_search_cache table.
+#[derive(Debug, Clone, Queryable, Selectable, Identifiable)]
+#[diesel(table_name = audiobook_search_cache)]
+#[diesel(primary_key(query_hash))]
+#[diesel(check_for_backend(diesel::pg::Pg))]
+pub struct AudiobookSearchCacheRow {
+    pub query_hash: String,
+    pub query_text: String,
+    pub audiobook_ids: Vec<Option<i64>>,
+    pub total_count: i32,
+    pub cached_at: DateTime<Utc>,
+}
+
+/// Insertable row for audiobook_search_cache table.
+#[derive(Debug, Clone, Insertable)]
+#[diesel(table_name = audiobook_search_cache)]
+pub struct NewAudiobookSearchCacheRow {
+    pub query_hash: String,
+    pub query_text: String,
+    pub audiobook_ids: Vec<i64>,
+    pub total_count: i32,
 }
 
 /// Database row for podcast_search_cache table.
