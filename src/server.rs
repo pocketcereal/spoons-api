@@ -97,16 +97,22 @@ pub async fn run(config: &AppConfig) -> Result<()> {
     }
 
     if config.jamendo.enabled {
-        let client_id = config.jamendo.client_id.clone()
+        match config.jamendo.client_id.clone()
             .or_else(|| std::env::var("JAMENDO_CLIENT_ID").ok())
-            .expect("JAMENDO_CLIENT_ID required when jamendo is enabled");
-        match JamendoClient::new(client_id, &config.jamendo.base_url) {
-            Ok(client) => {
-                tracing::info!(base_url = %config.jamendo.base_url, "Jamendo client initialized");
-                music_providers.push(Arc::new(JamendoProvider::new(client)));
+        {
+            Some(client_id) => {
+                match JamendoClient::new(client_id, &config.jamendo.base_url) {
+                    Ok(client) => {
+                        tracing::info!(base_url = %config.jamendo.base_url, "Jamendo client initialized");
+                        music_providers.push(Arc::new(JamendoProvider::new(client)));
+                    }
+                    Err(e) => {
+                        tracing::warn!(error = %e, "Failed to initialize Jamendo client, Jamendo search will be disabled");
+                    }
+                }
             }
-            Err(e) => {
-                tracing::warn!(error = %e, "Failed to initialize Jamendo client, Jamendo search will be disabled");
+            None => {
+                tracing::warn!("Jamendo enabled but client_id not configured");
             }
         }
     }

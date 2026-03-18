@@ -128,12 +128,22 @@ impl Default for PodcastIndexConfig {
     }
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Clone, Deserialize)]
 #[serde(default)]
 pub struct JamendoConfig {
     pub enabled: bool,
     pub client_id: Option<String>,
     pub base_url: String,
+}
+
+impl std::fmt::Debug for JamendoConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("JamendoConfig")
+            .field("enabled", &self.enabled)
+            .field("client_id", &self.client_id.as_ref().map(|_| "[REDACTED]"))
+            .field("base_url", &self.base_url)
+            .finish()
+    }
 }
 
 impl Default for JamendoConfig {
