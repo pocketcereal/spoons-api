@@ -7,7 +7,6 @@ use crate::graphql::{
     clamp_limit, get_app_context, require_audiobook_service, validate_id, validate_query,
 };
 
-use super::audiobook_types::AudiobookSource;
 use super::{Audiobook, Chapter};
 
 #[derive(Default)]
@@ -20,9 +19,7 @@ impl AudiobookQuery {
         ctx: &Context<'_>,
         query: String,
         #[graphql(default = 20)] limit: i32,
-        source: Option<AudiobookSource>,
     ) -> Result<Vec<Audiobook>> {
-        let _ = source;
         let query = validate_query(&query)?;
         let limit = clamp_limit(limit);
         let app_ctx = get_app_context(ctx)?;
@@ -97,9 +94,7 @@ impl AudiobookQuery {
         &self,
         ctx: &Context<'_>,
         #[graphql(default = 10)] limit: i32,
-        source: Option<AudiobookSource>,
     ) -> Result<Vec<Audiobook>> {
-        let _ = source;
         let limit = clamp_limit(limit);
         let app_ctx = get_app_context(ctx)?;
         let service = require_audiobook_service(app_ctx)?;

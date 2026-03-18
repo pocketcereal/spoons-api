@@ -229,7 +229,6 @@ query {
   searchPodcasts(
     query: "technology"
     limit: 20              # optional, default 20, max 100
-    source: PODCAST_INDEX  # optional — omit to search all sources
   ) {
     ... on PodcastIndexPodcast {
       id
@@ -258,7 +257,7 @@ Search podcasts by exact title match.
 
 ```graphql
 query {
-  searchPodcastsByTitle(title: "The Daily", limit: 10, source: PODCAST_INDEX) {
+  searchPodcastsByTitle(title: "The Daily", limit: 10) {
     ... on PodcastIndexPodcast { id title author }
   }
 }
@@ -285,7 +284,6 @@ query {
   trendingPodcasts(
     limit: 20              # optional, default 20, max 100
     categories: [1, 2]     # optional — filter by category IDs
-    source: PODCAST_INDEX  # optional — omit to query all sources
   ) {
     ... on PodcastIndexPodcast { id title trendScore }
   }
@@ -356,7 +354,6 @@ query {
     limit: 10              # optional, default 10, max 100
     language: "en"          # optional — ISO 639-1 language code
     categories: [1, 2]      # optional — filter by category IDs
-    source: PODCAST_INDEX   # optional — omit to query all sources
   ) {
     ... on PodcastIndexEpisode { id title podcastId audioUrl }
   }
@@ -378,7 +375,6 @@ query {
   searchAudiobooks(
     query: "pride and prejudice"
     limit: 20          # optional, default 20, max 100
-    source: LIBRI_VOX  # optional — omit to search all sources
   ) {
     ... on LibriVoxAudiobook {
       id
@@ -456,7 +452,6 @@ Get random audiobooks for discovery.
 query {
   randomAudiobooks(
     limit: 10          # optional, default 10, max 100
-    source: LIBRI_VOX  # optional — omit for all sources
   ) {
     ... on LibriVoxAudiobook { id title authors { firstName lastName } coverartUrl }
   }

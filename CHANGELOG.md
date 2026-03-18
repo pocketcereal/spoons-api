@@ -15,8 +15,6 @@ All notable changes to this project will be documented in this file.
 - Added Terraform + Docker Compose deployment for GCP single-VM setup (Caddy TLS, Redis, Supabase Postgres)
 - Added unified `search` and `random` GraphQL queries for cross-domain discovery with parallel fan-out and partial failure handling
 - Added `ContentDomain` enum (`MUSIC`, `PODCASTS`, `AUDIOBOOKS`) for domain filtering
-- Added optional `source` filter to podcast queries (`searchPodcasts`, `searchPodcastsByTitle`, `trendingPodcasts`, `randomEpisodes`)
-- Added optional `source` filter to audiobook queries (`searchAudiobooks`, `randomAudiobooks`)
 
 ### Removed
 - Removed unused `redis` dependency from Cargo.toml
