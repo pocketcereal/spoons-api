@@ -1,7 +1,6 @@
 use async_graphql::{
     Context, EmptyMutation, EmptySubscription, ErrorExtensions, MergedObject, Object, Schema,
 };
-use rand::seq::SliceRandom;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -10,6 +9,8 @@ use crate::domain::DataSource;
 use crate::error::AppError;
 use crate::services::{AudiobookService, MusicService, PodcastService};
 
+use super::audiobook::AudiobookQuery;
+use super::helpers::random_sample;
 use super::podcast::PodcastQuery;
 use super::types::{Artist, Track};
 
@@ -296,7 +297,7 @@ impl MusicQuery {
 }
 
 #[derive(MergedObject, Default)]
-pub struct QueryRoot(MusicQuery, PodcastQuery);
+pub struct QueryRoot(MusicQuery, PodcastQuery, AudiobookQuery);
 
 async fn search_musicbrainz_artists(
     app_ctx: &AppContext,
@@ -364,15 +365,6 @@ async fn search_audius_tracks(
 }
 
 const MUSICBRAINZ_MAX_OFFSET: i64 = 10_000;
-
-fn random_sample<T>(mut items: Vec<T>, n: usize) -> Vec<T> {
-    if items.len() <= n {
-        return items;
-    }
-    items.partial_shuffle(&mut rand::thread_rng(), n);
-    items.truncate(n);
-    items
-}
 
 async fn random_musicbrainz_tracks(
     app_ctx: &AppContext,
@@ -484,34 +476,6 @@ mod tests {
     use super::*;
     use crate::db::{DbConfig, create_pool};
     use crate::musicbrainz::MusicBrainzClient;
-
-    #[test]
-    fn test_random_sample_fewer_than_n() {
-        let items = vec![1, 2, 3];
-        let result = random_sample(items, 10);
-        assert_eq!(result.len(), 3);
-    }
-
-    #[test]
-    fn test_random_sample_exact_n() {
-        let items = vec![1, 2, 3];
-        let result = random_sample(items, 3);
-        assert_eq!(result.len(), 3);
-    }
-
-    #[test]
-    fn test_random_sample_larger_than_n() {
-        let items: Vec<i32> = (0..100).collect();
-        let result = random_sample(items, 5);
-        assert_eq!(result.len(), 5);
-    }
-
-    #[test]
-    fn test_random_sample_empty() {
-        let items: Vec<i32> = vec![];
-        let result = random_sample(items, 5);
-        assert!(result.is_empty());
-    }
 
     #[test]
     fn test_schema_builds() {

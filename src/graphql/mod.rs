@@ -1,3 +1,5 @@
+pub mod audiobook;
+pub(crate) mod helpers;
 pub mod podcast;
 mod schema;
 pub mod types;
