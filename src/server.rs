@@ -10,12 +10,13 @@ use crate::db::{DbConfig, create_pool};
 use crate::domain::{AudiobookProvider, MusicProvider, PodcastProvider};
 use crate::error::{AppError, Result};
 use crate::graphql::{AppContext, build_schema};
+use crate::jamendo::JamendoClient;
 use crate::librivox::LibriVoxClient;
 use crate::musicbrainz::MusicBrainzClient;
 use crate::podcast_index::PodcastIndexClient;
 use crate::routes;
 use crate::services::{AudiobookService, MusicService, PodcastService};
-use crate::sources::{AudiusProvider, LibriVoxProvider, MusicBrainzProvider, PodcastIndexProvider};
+use crate::sources::{AudiusProvider, JamendoProvider, LibriVoxProvider, MusicBrainzProvider, PodcastIndexProvider};
 
 pub async fn run(config: &AppConfig) -> Result<()> {
     let auth_config = AuthConfig::from_env();
@@ -93,6 +94,21 @@ pub async fn run(config: &AppConfig) -> Result<()> {
         vec![Arc::new(MusicBrainzProvider::new(music))];
     if let Some(audius) = audius_client {
         music_providers.push(Arc::new(AudiusProvider::new(audius)));
+    }
+
+    if config.jamendo.enabled {
+        let client_id = config.jamendo.client_id.clone()
+            .or_else(|| std::env::var("JAMENDO_CLIENT_ID").ok())
+            .expect("JAMENDO_CLIENT_ID required when jamendo is enabled");
+        match JamendoClient::new(client_id, &config.jamendo.base_url) {
+            Ok(client) => {
+                tracing::info!(base_url = %config.jamendo.base_url, "Jamendo client initialized");
+                music_providers.push(Arc::new(JamendoProvider::new(client)));
+            }
+            Err(e) => {
+                tracing::warn!(error = %e, "Failed to initialize Jamendo client, Jamendo search will be disabled");
+            }
+        }
     }
 
     let audiobook = if config.librivox.enabled {

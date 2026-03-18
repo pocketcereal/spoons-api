@@ -24,6 +24,12 @@ podcast_index:
   api_key: ${PODCAST_INDEX_API_KEY}  # Your PodcastIndex API key
   api_secret: ${PODCAST_INDEX_API_SECRET}  # Your PodcastIndex API secret
 
+# Jamendo music provider configuration
+# Get a client ID from https://devportal.jamendo.com/
+jamendo:
+  enabled: true
+  client_id: ${JAMENDO_CLIENT_ID}
+
 # LibriVox audiobook API configuration
 # Free public API, no authentication required
 librivox:
