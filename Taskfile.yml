@@ -57,12 +57,17 @@ tasks:
     cmds:
       - cargo clean
 
-  dev:
+  watch:
     desc: Run development server with auto-reload
-    aliases: [watch]
     cmds:
       - lsof -ti:4000 | xargs kill -9 2>/dev/null || true
       - cargo watch -x 'run -- start --config config.yaml'
+
+  dev:
+    desc: Run development serve
+    cmds:
+      - lsof -ti:4000 | xargs kill -9 2>/dev/null || true
+      - cargo run -- start --config config.yaml
 
   run:
     desc: Run release binary
@@ -326,6 +331,18 @@ tasks:
 
         run_query "random_artists_musicbrainz" \
           '{"query":"{ randomArtists(source: MUSIC_BRAINZ, limit: 3) { __typename ... on MusicBrainzArtist { id name source country } } }"}'
+
+        run_query "unified_search_all" \
+          '{"query":"{ search(query: \"pride\") { music { artists { ... on MusicBrainzArtist { id name } } tracks { ... on MusicBrainzTrack { id title } } } podcasts { podcasts { ... on PodcastIndexPodcast { id title } } } audiobooks { audiobooks { ... on LibriVoxAudiobook { id title } } } } }"}'
+
+        run_query "unified_search_single_domain" \
+          '{"query":"{ search(query: \"radiohead\", domains: [MUSIC], limit: 3) { music { artists { ... on MusicBrainzArtist { id name } } tracks { ... on MusicBrainzTrack { id title } } } } }"}'
+
+        run_query "unified_random_all" \
+          '{"query":"{ random(limit: 3) { music { artists { ... on MusicBrainzArtist { id name } } tracks { ... on MusicBrainzTrack { id title } } } podcasts { episodes { ... on PodcastIndexEpisode { id title } } } audiobooks { audiobooks { ... on LibriVoxAudiobook { id title } } } } }"}'
+
+        run_query "unified_random_audiobooks_only" \
+          '{"query":"{ random(domains: [AUDIOBOOKS], limit: 3) { audiobooks { audiobooks { ... on LibriVoxAudiobook { id title } } } } }"}'
 
         TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
         SUMMARY=$(jq -n \
