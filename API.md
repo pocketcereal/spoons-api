@@ -258,7 +258,7 @@ Search podcasts by exact title match.
 
 ```graphql
 query {
-  searchPodcastsByTitle(title: "The Daily", limit: 10) {
+  searchPodcastsByTitle(title: "The Daily", limit: 10, source: PODCAST_INDEX) {
     ... on PodcastIndexPodcast { id title author }
   }
 }
@@ -283,8 +283,9 @@ Get trending podcasts, optionally filtered by category IDs.
 ```graphql
 query {
   trendingPodcasts(
-    limit: 20          # optional, default 20, max 100
-    categories: [1, 2] # optional — filter by category IDs
+    limit: 20              # optional, default 20, max 100
+    categories: [1, 2]     # optional — filter by category IDs
+    source: PODCAST_INDEX  # optional — omit to query all sources
   ) {
     ... on PodcastIndexPodcast { id title trendScore }
   }
@@ -352,9 +353,10 @@ Get random episodes for discovery.
 ```graphql
 query {
   randomEpisodes(
-    limit: 10           # optional, default 10, max 100
-    language: "en"       # optional — ISO 639-1 language code
-    categories: [1, 2]   # optional — filter by category IDs
+    limit: 10              # optional, default 10, max 100
+    language: "en"          # optional — ISO 639-1 language code
+    categories: [1, 2]      # optional — filter by category IDs
+    source: PODCAST_INDEX   # optional — omit to query all sources
   ) {
     ... on PodcastIndexEpisode { id title podcastId audioUrl }
   }
@@ -532,7 +534,7 @@ query {
 - `domains` — Optional array of `ContentDomain`. Omit for all.
 - `limit` — Per-domain limit (default 10, max 100).
 
-**Partial failure:** Each domain is queried in parallel with a 10-second timeout. If a domain fails or times out, its field is `null` and the failure is logged server-side. Other domains still return data.
+**Partial failure:** All domains are queried in parallel. Podcast and audiobook domains have a 10-second timeout. Music relies on per-source timeouts (10s each for MusicBrainz and Audius individually). If a domain fails or times out, its field is `null` and the failure is logged server-side. Other domains still return data.
 
 ---
 
