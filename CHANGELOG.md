@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Added LibriVox audiobook integration as a new content domain alongside Music and Podcasts
+- Added `searchAudiobooks`, `audiobook`, `chapters`, and `randomAudiobooks` GraphQL queries
+- Added cache-first `AudiobookService` with database-backed caching for audiobooks, chapters, and search results
+- Added `audiobooks`, `chapters`, and `audiobook_search_cache` database tables with migrations
 - Added `randomTracks` and `randomArtists` GraphQL queries with optional `source` filter and parallel fan-out across MusicBrainz and Audius
 - Added Audius trending tracks endpoint (`/tracks/trending`) for random track/artist sampling
 - Added MusicBrainz random selection via search offset randomization (capped at 10,000)

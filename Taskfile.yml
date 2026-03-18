@@ -294,6 +294,18 @@ tasks:
         run_query "random_episodes" \
           '{"query":"{ randomEpisodes(limit: 3, language: \"en\") { ... on PodcastIndexEpisode { id title podcastId } } }"}'
 
+        run_query "search_audiobooks" \
+          '{"query":"{ searchAudiobooks(query: \"pride\", limit: 3) { ... on LibriVoxAudiobook { id title source } } }"}'
+
+        run_query "get_audiobook_by_id" \
+          '{"query":"{ audiobook(id: \"librivox:128\") { ... on LibriVoxAudiobook { id title authors { firstName lastName } } } }"}'
+
+        run_query "get_chapters" \
+          '{"query":"{ chapters(audiobookId: \"librivox:128\", limit: 5) { ... on LibriVoxChapter { id title sectionNumber listenUrl } } }"}'
+
+        run_query "random_audiobooks" \
+          '{"query":"{ randomAudiobooks(limit: 3) { ... on LibriVoxAudiobook { id title source } } }"}'
+
         run_query "search_tracks_multi_source" \
           '{"query":"{ searchTracks(query: \"Around the World\", limit: 3) { __typename ... on MusicBrainzTrack { id title artistName } ... on AudiusTrack { id title artistName } } }"}'
 
