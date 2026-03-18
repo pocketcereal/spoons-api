@@ -11,6 +11,7 @@ pub mod domain;
 pub mod error;
 pub mod graphql;
 pub mod http;
+pub mod librivox;
 pub mod logging;
 pub mod musicbrainz;
 pub mod podcast;
