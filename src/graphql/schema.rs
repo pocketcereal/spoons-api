@@ -83,14 +83,14 @@ fn clamp_offset(offset: i32) -> i32 {
     offset.clamp(0, MAX_SEARCH_OFFSET)
 }
 
-fn filter_music_providers(
+pub(crate) fn filter_music_providers(
     providers: &[Arc<dyn MusicProvider>],
-    source: Option<DataSource>,
+    sources: Option<&[DataSource]>,
 ) -> Vec<Arc<dyn MusicProvider>> {
-    match source {
-        Some(s) => providers
+    match sources {
+        Some(allowed) => providers
             .iter()
-            .filter(|p| p.source_id() == s)
+            .filter(|p| allowed.contains(&p.source_id()))
             .cloned()
             .collect(),
         None => providers.to_vec(),
@@ -110,7 +110,7 @@ impl MusicQuery {
         &self,
         ctx: &Context<'_>,
         query: String,
-        source: Option<DataSource>,
+        sources: Option<Vec<DataSource>>,
         #[graphql(default = 25)] limit: i32,
         #[graphql(default = 0)] offset: i32,
     ) -> GqlResult<Vec<Artist>> {
@@ -118,7 +118,7 @@ impl MusicQuery {
         let limit = clamp_limit(limit);
         let offset = clamp_offset(offset);
         let app_ctx = get_app_context(ctx)?;
-        let providers = filter_music_providers(&app_ctx.music_providers, source);
+        let providers = filter_music_providers(&app_ctx.music_providers, sources.as_deref());
         Ok(fan_out_search(&providers, SOURCE_TIMEOUT, |p| {
             let q = query.clone();
             async move { p.search_artists(&q, limit, offset).await }
@@ -148,7 +148,7 @@ impl MusicQuery {
         &self,
         ctx: &Context<'_>,
         query: String,
-        source: Option<DataSource>,
+        sources: Option<Vec<DataSource>>,
         #[graphql(default = 25)] limit: i32,
         #[graphql(default = 0)] offset: i32,
     ) -> GqlResult<Vec<Track>> {
@@ -156,7 +156,7 @@ impl MusicQuery {
         let limit = clamp_limit(limit);
         let offset = clamp_offset(offset);
         let app_ctx = get_app_context(ctx)?;
-        let providers = filter_music_providers(&app_ctx.music_providers, source);
+        let providers = filter_music_providers(&app_ctx.music_providers, sources.as_deref());
         Ok(fan_out_search(&providers, SOURCE_TIMEOUT, |p| {
             let q = query.clone();
             async move { p.search_tracks(&q, limit, offset).await }
@@ -167,12 +167,12 @@ impl MusicQuery {
     async fn random_tracks(
         &self,
         ctx: &Context<'_>,
-        source: Option<DataSource>,
+        sources: Option<Vec<DataSource>>,
         #[graphql(default = 10)] limit: i32,
     ) -> GqlResult<Vec<Track>> {
         let limit = clamp_limit(limit);
         let app_ctx = get_app_context(ctx)?;
-        let providers = filter_music_providers(&app_ctx.music_providers, source);
+        let providers = filter_music_providers(&app_ctx.music_providers, sources.as_deref());
         Ok(
             fan_out_search(&providers, SOURCE_TIMEOUT, |p| async move {
                 p.random_tracks(limit).await
@@ -184,15 +184,32 @@ impl MusicQuery {
     async fn random_artists(
         &self,
         ctx: &Context<'_>,
-        source: Option<DataSource>,
+        sources: Option<Vec<DataSource>>,
         #[graphql(default = 10)] limit: i32,
     ) -> GqlResult<Vec<Artist>> {
         let limit = clamp_limit(limit);
         let app_ctx = get_app_context(ctx)?;
-        let providers = filter_music_providers(&app_ctx.music_providers, source);
+        let providers = filter_music_providers(&app_ctx.music_providers, sources.as_deref());
         Ok(
             fan_out_search(&providers, SOURCE_TIMEOUT, |p| async move {
                 p.random_artists(limit).await
+            })
+            .await,
+        )
+    }
+
+    async fn trending_tracks(
+        &self,
+        ctx: &Context<'_>,
+        sources: Option<Vec<DataSource>>,
+        #[graphql(default = 20)] limit: i32,
+    ) -> GqlResult<Vec<Track>> {
+        let limit = clamp_limit(limit);
+        let app_ctx = get_app_context(ctx)?;
+        let providers = filter_music_providers(&app_ctx.music_providers, sources.as_deref());
+        Ok(
+            fan_out_search(&providers, SOURCE_TIMEOUT, |p| async move {
+                p.trending_tracks(limit).await
             })
             .await,
         )

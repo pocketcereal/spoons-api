@@ -66,4 +66,9 @@ impl MusicProvider for JamendoProvider {
         let tracks: Vec<Track> = tracks.into_iter().map(|t| Track::Jamendo(t.into())).collect();
         Ok(random_sample(tracks, limit as usize))
     }
+
+    async fn trending_tracks(&self, limit: i32) -> Result<Vec<Track>> {
+        let tracks = self.client.popular_tracks(limit).await?;
+        Ok(tracks.into_iter().map(|t| Track::Jamendo(t.into())).collect())
+    }
 }

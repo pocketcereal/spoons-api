@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- Added `trendingTracks` GraphQL query with parallel fan-out across Audius and Jamendo (MusicBrainz has no trending API)
+
+### Changed
+- **BREAKING**: Music queries (`searchArtists`, `searchTracks`, `randomTracks`, `randomArtists`, `trendingTracks`) now accept `sources: [DataSource]` (array) instead of `source: DataSource` (single). Omitting the parameter still queries all sources.
+
+### Added
 - Added LibriVox audiobook integration as a new content domain alongside Music and Podcasts
 - Added `searchAudiobooks`, `audiobook`, `chapters`, and `randomAudiobooks` GraphQL queries
 - Added cache-first `AudiobookService` with database-backed caching for audiobooks, chapters, and search results

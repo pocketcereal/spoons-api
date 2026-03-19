@@ -7,4 +7,4 @@ pub mod unified;
 
 pub(crate) use schema::get_app_context;
 pub use schema::{AppContext, AppSchema, QueryRoot, build_schema};
-pub(crate) use schema::{clamp_limit, validate_id, validate_query};
+pub(crate) use schema::{clamp_limit, filter_music_providers, validate_id, validate_query};

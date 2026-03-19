@@ -11,4 +11,5 @@ pub trait MusicProvider: Send + Sync {
     async fn get_track(&self, id: &str) -> Result<Option<Track>>;
     async fn random_artists(&self, limit: i32) -> Result<Vec<Artist>>;
     async fn random_tracks(&self, limit: i32) -> Result<Vec<Track>>;
+    async fn trending_tracks(&self, limit: i32) -> Result<Vec<Track>>;
 }

@@ -60,4 +60,9 @@ impl MusicProvider for AudiusProvider {
         let sampled = random_sample(tracks, limit as usize);
         Ok(sampled.into_iter().map(|t| Track::Audius(t.into())).collect())
     }
+
+    async fn trending_tracks(&self, limit: i32) -> Result<Vec<Track>> {
+        let tracks = self.client.trending_tracks(limit).await?;
+        Ok(tracks.into_iter().map(|t| Track::Audius(t.into())).collect())
+    }
 }

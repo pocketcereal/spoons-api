@@ -91,4 +91,8 @@ impl MusicProvider for MusicBrainzProvider {
             .map(|r| Track::MusicBrainz(r.into()))
             .collect())
     }
+
+    async fn trending_tracks(&self, _limit: i32) -> Result<Vec<Track>> {
+        Ok(vec![])
+    }
 }

@@ -4,7 +4,7 @@ use async_graphql::{Context, Object, Result};
 
 use crate::domain::{AudiobookProvider, DataSource, MusicProvider, PodcastProvider};
 use crate::error::AppError;
-use crate::graphql::{clamp_limit, get_app_context, validate_query};
+use crate::graphql::{clamp_limit, filter_music_providers, get_app_context, validate_query};
 use crate::sources::{fan_out_search, SOURCE_TIMEOUT};
 
 use super::types::*;
@@ -28,20 +28,6 @@ fn domain_providers<'a, T: ?Sized>(
         providers
     } else {
         &[]
-    }
-}
-
-fn filter_music_providers(
-    providers: &[Arc<dyn MusicProvider>],
-    sources: &Option<Vec<DataSource>>,
-) -> Vec<Arc<dyn MusicProvider>> {
-    match sources {
-        Some(allowed) => providers
-            .iter()
-            .filter(|p| allowed.contains(&p.source_id()))
-            .cloned()
-            .collect(),
-        None => providers.to_vec(),
     }
 }
 
@@ -76,7 +62,7 @@ impl UnifiedQuery {
 
         let music_providers = filter_music_providers(
             domain_providers(&app_ctx.music_providers, &domains, ContentDomain::Music),
-            &music_sources,
+            music_sources.as_deref(),
         );
 
         let (music, podcasts, audiobooks) = tokio::join!(
