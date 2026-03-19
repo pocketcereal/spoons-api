@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: spoons-api
+  namespace: spoons-api
+  labels:
+    app: spoons-api
+spec:
+  type: ClusterIP
+  selector:
+    app: spoons-api
+  ports:
+    - port: 80
+      targetPort: http
+      protocol: TCP
+      name: http

@@ -1,0 +1,42 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: spoons-api-config
+  namespace: spoons-api
+data:
+  config.yaml: |
+    server:
+      port: 4000
+
+    logging:
+      level: info
+      format: json
+
+    audius:
+      app_name: spoons-api
+      enabled: true
+
+    database:
+      max_connections: 10
+      cache_ttl_seconds: 86400
+
+    podcast_index:
+      enabled: true
+      api_key: ${PODCAST_INDEX_API_KEY}
+      api_secret: ${PODCAST_INDEX_API_SECRET}
+
+    jamendo:
+      enabled: true
+      client_id: ${JAMENDO_CLIENT_ID}
+
+    librivox:
+      enabled: true
+
+    cache:
+      enabled: true
+      max_entries: 1000
+      trending_ttl_seconds: 300
+      search_ttl_seconds: 600
+      podcast_ttl_seconds: 86400
+      episode_ttl_seconds: 3600
+      categories_ttl_seconds: 86400

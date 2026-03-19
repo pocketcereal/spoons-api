@@ -1,0 +1,21 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: spoons-api
+  namespace: spoons-api
+  annotations:
+    tailscale.com/expose: "true"
+    tailscale.com/hostname: spoons-api
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: spoons-api
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: spoons-api
+                port:
+                  name: http
