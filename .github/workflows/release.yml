@@ -1,4 +1,4 @@
-name: Release
+name: "Release: ${{ github.ref_name }}"
 
 on:
   workflow_dispatch: # disabled until Dockerfile MSRV is validated
@@ -8,8 +8,8 @@ env:
   REPOSITORY: pocketcereal/spoons-api
 
 jobs:
-  build-and-push:
-    name: Build and Push Docker Image
+  release:
+    name: "Releasing: ${{ github.ref_name }}"
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -54,3 +54,14 @@ jobs:
           set: |
             *.cache-from=type=gha
             *.cache-to=type=gha,mode=max
+
+      - name: Summary
+        run: |
+          echo "## Release: ${{ github.ref_name }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Image:** \`${{ env.REGISTRY }}/${{ env.REPOSITORY }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Tags" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "${{ steps.meta.outputs.tags }}" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
