@@ -4,8 +4,8 @@ on:
   workflow_dispatch: # disabled until Dockerfile MSRV is validated
 
 env:
-  REGISTRY: ${{ vars.REGISTRY || 'ghcr.io' }}
-  REPOSITORY: ${{ vars.REPOSITORY || github.repository }}
+  REGISTRY: ghcr.io
+  REPOSITORY: pocketcereal/spoons-api
 
 jobs:
   build-and-push:
