@@ -13,10 +13,7 @@ struct AudiobookByIdParams {
     coverart: i32,
 }
 
-pub async fn get_audiobook_by_id(
-    client: &LibriVoxClient,
-    id: i64,
-) -> Result<Option<Audiobook>> {
+pub async fn get_audiobook_by_id(client: &LibriVoxClient, id: i64) -> Result<Option<Audiobook>> {
     let params = AudiobookByIdParams {
         id,
         format: "json",
@@ -24,9 +21,7 @@ pub async fn get_audiobook_by_id(
         coverart: 1,
     };
 
-    let response: LibriVoxBooksResponse = client
-        .get_with_query("/audiobooks", &params)
-        .await?;
+    let response: LibriVoxBooksResponse = client.get_with_query("/audiobooks", &params).await?;
 
     let books = response.books.unwrap_or_default();
     Ok(books.into_iter().next().and_then(audiobook_from_book))

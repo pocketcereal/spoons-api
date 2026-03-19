@@ -245,9 +245,8 @@ mod tests {
 
     #[test]
     fn test_build_url() {
-        let client =
-            ApiClient::new("https://api.example.com", Duration::from_secs(30))
-                .expect("Failed to create API client");
+        let client = ApiClient::new("https://api.example.com", Duration::from_secs(30))
+            .expect("Failed to create API client");
 
         assert_eq!(client.build_url("/users"), "https://api.example.com/users");
         assert_eq!(client.build_url("users"), "https://api.example.com/users");
@@ -255,9 +254,8 @@ mod tests {
 
     #[test]
     fn test_build_url_with_trailing_slash() {
-        let client =
-            ApiClient::new("https://api.example.com/", Duration::from_secs(30))
-                .expect("Failed to create API client");
+        let client = ApiClient::new("https://api.example.com/", Duration::from_secs(30))
+            .expect("Failed to create API client");
 
         assert_eq!(client.build_url("/users"), "https://api.example.com/users");
     }

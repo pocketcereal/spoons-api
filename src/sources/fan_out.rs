@@ -1,7 +1,7 @@
+use crate::error::Result;
+use futures::future::join_all;
 use std::sync::Arc;
 use std::time::Duration;
-use futures::future::join_all;
-use crate::error::Result;
 
 pub const SOURCE_TIMEOUT: Duration = Duration::from_secs(10);
 
@@ -71,8 +71,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::time::Duration;
     use crate::error::AppError;
+    use std::time::Duration;
 
     struct Source {
         items: Vec<String>,
@@ -82,16 +82,32 @@ mod tests {
 
     impl Source {
         fn ok(items: &[&str]) -> Arc<Self> {
-            Arc::new(Self { items: items.iter().map(|s| s.to_string()).collect(), fail: false, slow: false })
+            Arc::new(Self {
+                items: items.iter().map(|s| s.to_string()).collect(),
+                fail: false,
+                slow: false,
+            })
         }
         fn err() -> Arc<Self> {
-            Arc::new(Self { items: vec![], fail: true, slow: false })
+            Arc::new(Self {
+                items: vec![],
+                fail: true,
+                slow: false,
+            })
         }
         fn slow() -> Arc<Self> {
-            Arc::new(Self { items: vec![], fail: false, slow: true })
+            Arc::new(Self {
+                items: vec![],
+                fail: false,
+                slow: true,
+            })
         }
         fn none() -> Arc<Self> {
-            Arc::new(Self { items: vec![], fail: false, slow: false })
+            Arc::new(Self {
+                items: vec![],
+                fail: false,
+                slow: false,
+            })
         }
     }
 
@@ -117,10 +133,7 @@ mod tests {
 
     #[tokio::test]
     async fn fan_out_search_combines_results_from_multiple_sources() {
-        let sources = vec![
-            Source::ok(&["a", "b"]),
-            Source::ok(&["c"]),
-        ];
+        let sources = vec![Source::ok(&["a", "b"]), Source::ok(&["c"])];
         let timeout = Duration::from_secs(5);
 
         let results = fan_out_search(&sources, timeout, do_search).await;
@@ -133,10 +146,7 @@ mod tests {
 
     #[tokio::test]
     async fn fan_out_search_returns_results_from_successful_sources_when_one_fails() {
-        let sources = vec![
-            Source::ok(&["ok"]),
-            Source::err(),
-        ];
+        let sources = vec![Source::ok(&["ok"]), Source::err()];
         let timeout = Duration::from_secs(5);
 
         let results = fan_out_search(&sources, timeout, do_search).await;
@@ -146,10 +156,7 @@ mod tests {
 
     #[tokio::test]
     async fn fan_out_search_handles_timeouts_gracefully() {
-        let sources = vec![
-            Source::ok(&["fast"]),
-            Source::slow(),
-        ];
+        let sources = vec![Source::ok(&["fast"]), Source::slow()];
         let timeout = Duration::from_millis(50);
 
         let results = fan_out_search(&sources, timeout, do_search).await;
@@ -173,10 +180,7 @@ mod tests {
 
     #[tokio::test]
     async fn fan_out_single_returns_none_when_all_sources_return_none() {
-        let sources = vec![
-            Source::none(),
-            Source::none(),
-        ];
+        let sources = vec![Source::none(), Source::none()];
         let timeout = Duration::from_secs(5);
 
         let result = fan_out_single(&sources, timeout, do_lookup).await;

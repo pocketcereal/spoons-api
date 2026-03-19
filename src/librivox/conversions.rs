@@ -48,10 +48,7 @@ pub fn chapter_from_section(section: LibriVoxSection, audiobook_id: i64) -> Opti
     let id: i64 = section.id.parse().ok()?;
     let section_number: i32 = section.section_number.parse().ok()?;
 
-    let duration_seconds = section
-        .duration
-        .as_deref()
-        .and_then(parse_duration_hms);
+    let duration_seconds = section.duration.as_deref().and_then(parse_duration_hms);
 
     let readers = section
         .readers

@@ -41,7 +41,11 @@ where
         }
     }
 
-    tracing::debug!(entity = entity_name, key = cache_key, "Cache miss, fetching from API");
+    tracing::debug!(
+        entity = entity_name,
+        key = cache_key,
+        "Cache miss, fetching from API"
+    );
     let result = api_fetch.await?;
     cache_write(&result);
     Ok(result)
@@ -97,7 +101,11 @@ where
         }
     }
 
-    tracing::debug!(entity = entity_name, query = query, "Search cache miss, fetching from API");
+    tracing::debug!(
+        entity = entity_name,
+        query = query,
+        "Search cache miss, fetching from API"
+    );
     let results = api_fetch.await?;
     cache_write(&results);
     Ok(results)
@@ -106,7 +114,10 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::{Arc, atomic::{AtomicBool, Ordering}};
+    use std::sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    };
 
     #[tokio::test]
     async fn cached_get_returns_cached_value_on_hit() {

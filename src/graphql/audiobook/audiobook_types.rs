@@ -78,11 +78,7 @@ impl From<DomainAudiobookAuthor> for AudiobookAuthor {
         ty = "Option<i64>",
         desc = "Total duration in seconds"
     ),
-    field(
-        name = "coverart_url",
-        ty = "Option<String>",
-        desc = "Cover art URL"
-    )
+    field(name = "coverart_url", ty = "Option<String>", desc = "Cover art URL")
 )]
 pub enum Audiobook {
     LibriVox(LibriVoxAudiobook),

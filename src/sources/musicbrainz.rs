@@ -24,12 +24,18 @@ impl MusicProvider for MusicBrainzProvider {
 
     async fn search_artists(&self, query: &str, limit: i32, offset: i32) -> Result<Vec<Artist>> {
         let results = self.service.search_artists(query, limit, offset).await?;
-        Ok(results.into_iter().map(|a| Artist::MusicBrainz(a.into())).collect())
+        Ok(results
+            .into_iter()
+            .map(|a| Artist::MusicBrainz(a.into()))
+            .collect())
     }
 
     async fn search_tracks(&self, query: &str, limit: i32, offset: i32) -> Result<Vec<Track>> {
         let results = self.service.search_recordings(query, limit, offset).await?;
-        Ok(results.into_iter().map(|r| Track::MusicBrainz(r.into())).collect())
+        Ok(results
+            .into_iter()
+            .map(|r| Track::MusicBrainz(r.into()))
+            .collect())
     }
 
     async fn get_artist(&self, id: &str) -> Result<Option<Artist>> {

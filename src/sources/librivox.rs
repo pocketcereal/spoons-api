@@ -24,7 +24,12 @@ impl AudiobookProvider for LibriVoxProvider {
         AudiobookSource::LibriVox
     }
 
-    async fn search_audiobooks(&self, query: &str, limit: i32, offset: i32) -> Result<Vec<Audiobook>> {
+    async fn search_audiobooks(
+        &self,
+        query: &str,
+        limit: i32,
+        offset: i32,
+    ) -> Result<Vec<Audiobook>> {
         let results = self.service.search_audiobooks(query, limit, offset).await?;
         Ok(results.into_iter().map(Audiobook::from).collect())
     }
@@ -44,7 +49,10 @@ impl AudiobookProvider for LibriVoxProvider {
         let mut offset =
             rand::Rng::gen_range(&mut rand::thread_rng(), 0..LIBRIVOX_MAX_OFFSET as i32);
         for _ in 0..RANDOM_RETRY_ATTEMPTS {
-            let results = self.service.get_audiobooks_page(fetch_limit, offset).await?;
+            let results = self
+                .service
+                .get_audiobooks_page(fetch_limit, offset)
+                .await?;
             if !results.is_empty() {
                 return Ok(random_sample(results, limit as usize)
                     .into_iter()

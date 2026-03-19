@@ -41,7 +41,9 @@ impl MusicBrainzClient {
 
     pub async fn get_artist(&self, id: &str) -> Result<Artist> {
         let path = format!("/artist/{}", id);
-        self.client.get_with_query(&path, &FmtParam::default()).await
+        self.client
+            .get_with_query(&path, &FmtParam::default())
+            .await
     }
 
     pub async fn search_releases(
@@ -64,7 +66,9 @@ impl MusicBrainzClient {
 
     pub async fn get_release(&self, id: &str) -> Result<Release> {
         let path = format!("/release/{}", id);
-        self.client.get_with_query(&path, &FmtParam::default()).await
+        self.client
+            .get_with_query(&path, &FmtParam::default())
+            .await
     }
 
     pub async fn search_recordings(
@@ -88,7 +92,9 @@ impl MusicBrainzClient {
 
     pub async fn get_recording(&self, id: &str) -> Result<Recording> {
         let path = format!("/recording/{}", id);
-        self.client.get_with_query(&path, &RecordingParams::default()).await
+        self.client
+            .get_with_query(&path, &RecordingParams::default())
+            .await
     }
 
     pub async fn search_artists_with_count(
@@ -149,7 +155,9 @@ impl MusicBrainzClient {
 
     pub async fn get_release_group(&self, id: &str) -> Result<ReleaseGroup> {
         let path = format!("/release-group/{}", id);
-        self.client.get_with_query(&path, &FmtParam::default()).await
+        self.client
+            .get_with_query(&path, &FmtParam::default())
+            .await
     }
 }
 

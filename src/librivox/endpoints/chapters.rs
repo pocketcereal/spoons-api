@@ -12,19 +12,14 @@ struct ChapterParams {
     extended: i32,
 }
 
-pub async fn get_chapters(
-    client: &LibriVoxClient,
-    audiobook_id: i64,
-) -> Result<Vec<Chapter>> {
+pub async fn get_chapters(client: &LibriVoxClient, audiobook_id: i64) -> Result<Vec<Chapter>> {
     let params = ChapterParams {
         project_id: audiobook_id,
         format: "json",
         extended: 1,
     };
 
-    let response: LibriVoxSectionsResponse = client
-        .get_with_query("/audiotracks", &params)
-        .await?;
+    let response: LibriVoxSectionsResponse = client.get_with_query("/audiotracks", &params).await?;
 
     let sections = response.sections.unwrap_or_default();
     Ok(sections

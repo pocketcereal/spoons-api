@@ -24,12 +24,18 @@ impl MusicProvider for JamendoProvider {
 
     async fn search_artists(&self, query: &str, limit: i32, offset: i32) -> Result<Vec<Artist>> {
         let results = self.client.search_artists(query, limit, offset).await?;
-        Ok(results.into_iter().map(|a| Artist::Jamendo(a.into())).collect())
+        Ok(results
+            .into_iter()
+            .map(|a| Artist::Jamendo(a.into()))
+            .collect())
     }
 
     async fn search_tracks(&self, query: &str, limit: i32, offset: i32) -> Result<Vec<Track>> {
         let results = self.client.search_tracks(query, limit, offset).await?;
-        Ok(results.into_iter().map(|t| Track::Jamendo(t.into())).collect())
+        Ok(results
+            .into_iter()
+            .map(|t| Track::Jamendo(t.into()))
+            .collect())
     }
 
     async fn get_artist(&self, id: &str) -> Result<Option<Artist>> {
@@ -63,12 +69,18 @@ impl MusicProvider for JamendoProvider {
 
     async fn random_tracks(&self, limit: i32) -> Result<Vec<Track>> {
         let tracks = self.client.popular_tracks(limit * 2).await?;
-        let tracks: Vec<Track> = tracks.into_iter().map(|t| Track::Jamendo(t.into())).collect();
+        let tracks: Vec<Track> = tracks
+            .into_iter()
+            .map(|t| Track::Jamendo(t.into()))
+            .collect();
         Ok(random_sample(tracks, limit as usize))
     }
 
     async fn trending_tracks(&self, limit: i32) -> Result<Vec<Track>> {
         let tracks = self.client.popular_tracks(limit).await?;
-        Ok(tracks.into_iter().map(|t| Track::Jamendo(t.into())).collect())
+        Ok(tracks
+            .into_iter()
+            .map(|t| Track::Jamendo(t.into()))
+            .collect())
     }
 }

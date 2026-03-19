@@ -33,13 +33,22 @@ macro_rules! define_search_cache {
                 .first(&mut conn)
                 .await
                 .optional()
-                .map_err(db_error(concat!("Failed to get ", $entity_name, " search cache")))?;
+                .map_err(db_error(concat!(
+                    "Failed to get ",
+                    $entity_name,
+                    " search cache"
+                )))?;
 
             match cache_row {
                 Some(row) => {
                     let ids: Vec<$id_type> = ($extract_ids)(row);
                     let entities = ($get_by_ids)(pool, &ids).await?;
-                    Ok(helpers::resolve_and_order($entity_name, &ids, entities, $entity_id_fn))
+                    Ok(helpers::resolve_and_order(
+                        $entity_name,
+                        &ids,
+                        entities,
+                        $entity_id_fn,
+                    ))
                 }
                 None => Ok(None),
             }
@@ -57,7 +66,12 @@ macro_rules! define_search_cache {
             let ids: Vec<$id_type> = ($make_ids)(entities);
             let query_hash = hash_query(query, limit, offset);
 
-            let new_cache = ($new_row)(query_hash.clone(), query.to_string(), ids, entities.len() as i64);
+            let new_cache = ($new_row)(
+                query_hash.clone(),
+                query.to_string(),
+                ids,
+                entities.len() as i64,
+            );
 
             let mut conn = get_conn(pool).await?;
 
@@ -72,7 +86,11 @@ macro_rules! define_search_cache {
                 ))
                 .execute(&mut conn)
                 .await
-                .map_err(db_error(concat!("Failed to cache ", $entity_name, " search")))?;
+                .map_err(db_error(concat!(
+                    "Failed to cache ",
+                    $entity_name,
+                    " search"
+                )))?;
 
             Ok(())
         }

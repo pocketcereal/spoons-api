@@ -12,10 +12,8 @@ fn require_audiobook_provider(
     app_ctx: &std::sync::Arc<AppContext>,
 ) -> Result<&std::sync::Arc<dyn AudiobookProvider>> {
     app_ctx.audiobook_providers.first().ok_or_else(|| {
-        AppError::FeatureDisabled(
-            "LibriVox is not configured. Set librivox in config.yaml.".into(),
-        )
-        .extend()
+        AppError::FeatureDisabled("LibriVox is not configured. Set librivox in config.yaml.".into())
+            .extend()
     })
 }
 
@@ -44,14 +42,13 @@ impl AudiobookQuery {
         let id = validate_id(&id)?;
         let app_ctx = get_app_context(ctx)?;
 
-        let (source, audiobook_id) =
-            DomainAudiobookSource::parse_id(&id).ok_or_else(|| {
-                AppError::InvalidInput(format!(
-                    "Invalid audiobook ID format: {}",
-                    id.chars().take(50).collect::<String>()
-                ))
-                .extend()
-            })?;
+        let (source, audiobook_id) = DomainAudiobookSource::parse_id(&id).ok_or_else(|| {
+            AppError::InvalidInput(format!(
+                "Invalid audiobook ID format: {}",
+                id.chars().take(50).collect::<String>()
+            ))
+            .extend()
+        })?;
 
         match source {
             DomainAudiobookSource::LibriVox => {

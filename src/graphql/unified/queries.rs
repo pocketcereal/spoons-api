@@ -5,7 +5,7 @@ use async_graphql::{Context, Object, Result};
 use crate::domain::{AudiobookProvider, DataSource, MusicProvider, PodcastProvider};
 use crate::error::AppError;
 use crate::graphql::{clamp_limit, filter_music_providers, get_app_context, validate_query};
-use crate::sources::{fan_out_search, SOURCE_TIMEOUT};
+use crate::sources::{SOURCE_TIMEOUT, fan_out_search};
 
 use super::types::*;
 
@@ -67,8 +67,24 @@ impl UnifiedQuery {
 
         let (music, podcasts, audiobooks) = tokio::join!(
             search_music(&music_providers, &query, limit),
-            search_podcasts(domain_providers(&app_ctx.podcast_providers, &domains, ContentDomain::Podcasts), &query, limit),
-            search_audiobooks(domain_providers(&app_ctx.audiobook_providers, &domains, ContentDomain::Audiobooks), &query, limit),
+            search_podcasts(
+                domain_providers(
+                    &app_ctx.podcast_providers,
+                    &domains,
+                    ContentDomain::Podcasts
+                ),
+                &query,
+                limit
+            ),
+            search_audiobooks(
+                domain_providers(
+                    &app_ctx.audiobook_providers,
+                    &domains,
+                    ContentDomain::Audiobooks
+                ),
+                &query,
+                limit
+            ),
         );
 
         let mut results = SearchResults::default();
@@ -89,9 +105,26 @@ impl UnifiedQuery {
         let domains = resolve_domains(domains);
 
         let (music, podcasts, audiobooks) = tokio::join!(
-            random_music(domain_providers(&app_ctx.music_providers, &domains, ContentDomain::Music), limit),
-            random_podcasts(domain_providers(&app_ctx.podcast_providers, &domains, ContentDomain::Podcasts), limit),
-            random_audiobooks(domain_providers(&app_ctx.audiobook_providers, &domains, ContentDomain::Audiobooks), limit),
+            random_music(
+                domain_providers(&app_ctx.music_providers, &domains, ContentDomain::Music),
+                limit
+            ),
+            random_podcasts(
+                domain_providers(
+                    &app_ctx.podcast_providers,
+                    &domains,
+                    ContentDomain::Podcasts
+                ),
+                limit
+            ),
+            random_audiobooks(
+                domain_providers(
+                    &app_ctx.audiobook_providers,
+                    &domains,
+                    ContentDomain::Audiobooks
+                ),
+                limit
+            ),
         );
 
         let mut results = RandomResults::default();
@@ -180,8 +213,8 @@ async fn random_podcasts(
     if providers.is_empty() {
         return Ok(None);
     }
-    let episodes = fan_out_search(providers, SOURCE_TIMEOUT, |p| {
-        async move { p.random_episodes(limit, None, None).await }
+    let episodes = fan_out_search(providers, SOURCE_TIMEOUT, |p| async move {
+        p.random_episodes(limit, None, None).await
     })
     .await;
     Ok(Some(PodcastRandomResults { episodes }))
@@ -194,8 +227,8 @@ async fn random_audiobooks(
     if providers.is_empty() {
         return Ok(None);
     }
-    let audiobooks = fan_out_search(providers, SOURCE_TIMEOUT, |p| {
-        async move { p.random_audiobooks(limit).await }
+    let audiobooks = fan_out_search(providers, SOURCE_TIMEOUT, |p| async move {
+        p.random_audiobooks(limit).await
     })
     .await;
     Ok(Some(AudiobookRandomResults { audiobooks }))

@@ -130,10 +130,8 @@ mod tests {
 
     #[test]
     fn test_client_construction() {
-        let client = JamendoClient::new(
-            "test_client_id".to_string(),
-            "https://api.jamendo.com/v3.0",
-        );
+        let client =
+            JamendoClient::new("test_client_id".to_string(), "https://api.jamendo.com/v3.0");
         assert!(client.is_ok());
         let client = client.unwrap();
         assert_eq!(client.client_id, "test_client_id");
@@ -141,10 +139,7 @@ mod tests {
 
     #[test]
     fn test_client_construction_with_trailing_slash() {
-        let client = JamendoClient::new(
-            "my_id".to_string(),
-            "https://api.jamendo.com/v3.0/",
-        );
+        let client = JamendoClient::new("my_id".to_string(), "https://api.jamendo.com/v3.0/");
         assert!(client.is_ok());
     }
 }

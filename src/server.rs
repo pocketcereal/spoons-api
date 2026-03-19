@@ -16,7 +16,9 @@ use crate::musicbrainz::MusicBrainzClient;
 use crate::podcast_index::PodcastIndexClient;
 use crate::routes;
 use crate::services::{AudiobookService, MusicService, PodcastService};
-use crate::sources::{AudiusProvider, JamendoProvider, LibriVoxProvider, MusicBrainzProvider, PodcastIndexProvider};
+use crate::sources::{
+    AudiusProvider, JamendoProvider, LibriVoxProvider, MusicBrainzProvider, PodcastIndexProvider,
+};
 
 pub async fn run(config: &AppConfig) -> Result<()> {
     let auth_config = AuthConfig::from_env();
@@ -96,20 +98,21 @@ pub async fn run(config: &AppConfig) -> Result<()> {
     }
 
     if config.jamendo.enabled {
-        match config.jamendo.client_id.clone()
+        match config
+            .jamendo
+            .client_id
+            .clone()
             .or_else(|| std::env::var("JAMENDO_CLIENT_ID").ok())
         {
-            Some(client_id) => {
-                match JamendoClient::new(client_id, &config.jamendo.base_url) {
-                    Ok(client) => {
-                        tracing::info!(base_url = %config.jamendo.base_url, "Jamendo client initialized");
-                        music_providers.push(Arc::new(JamendoProvider::new(client)));
-                    }
-                    Err(e) => {
-                        tracing::warn!(error = %e, "Failed to initialize Jamendo client, Jamendo search will be disabled");
-                    }
+            Some(client_id) => match JamendoClient::new(client_id, &config.jamendo.base_url) {
+                Ok(client) => {
+                    tracing::info!(base_url = %config.jamendo.base_url, "Jamendo client initialized");
+                    music_providers.push(Arc::new(JamendoProvider::new(client)));
                 }
-            }
+                Err(e) => {
+                    tracing::warn!(error = %e, "Failed to initialize Jamendo client, Jamendo search will be disabled");
+                }
+            },
             None => {
                 tracing::warn!("Jamendo enabled but client_id not configured");
             }

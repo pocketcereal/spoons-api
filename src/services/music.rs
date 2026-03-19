@@ -17,11 +17,7 @@ pub struct MusicService {
 }
 
 impl MusicService {
-    pub fn new(
-        pool: DbPool,
-        mb_client: MusicBrainzClient,
-        cache_ttl: CacheTtlSeconds,
-    ) -> Self {
+    pub fn new(pool: DbPool, mb_client: MusicBrainzClient, cache_ttl: CacheTtlSeconds) -> Self {
         Self {
             pool,
             mb_client,
@@ -233,8 +229,7 @@ impl MusicService {
                 offset,
                 self.cache_ttl,
             ),
-            self.mb_client
-                .search_release_groups(query, limit, offset),
+            self.mb_client.search_release_groups(query, limit, offset),
             move |rgs: &[ReleaseGroup]| {
                 let rgs = rgs.to_vec();
                 spawn_cache_task("release group search", move || async move {

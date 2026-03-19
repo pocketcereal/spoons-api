@@ -1,8 +1,6 @@
 use async_graphql::{Interface, Object};
 
-use crate::audiobook::{
-    AudiobookSource as DomainAudiobookSource, Chapter as DomainChapter,
-};
+use crate::audiobook::{AudiobookSource as DomainAudiobookSource, Chapter as DomainChapter};
 
 use super::audiobook_types::AudiobookSource;
 
@@ -26,11 +24,7 @@ use super::audiobook_types::AudiobookSource;
         ty = "String",
         desc = "Audiobook ID (prefixed with source)"
     ),
-    field(
-        name = "section_number",
-        ty = "i32",
-        desc = "Section/chapter number"
-    ),
+    field(name = "section_number", ty = "i32", desc = "Section/chapter number"),
     field(
         name = "duration",
         ty = "Option<String>",

@@ -80,9 +80,13 @@ impl IntoResponse for AppError {
             AppError::RateLimited => (StatusCode::TOO_MANY_REQUESTS, "Rate limited".to_string()),
             AppError::InvalidInput(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
             AppError::FeatureDisabled(msg) => (StatusCode::SERVICE_UNAVAILABLE, msg.clone()),
-            AppError::Config(_) | AppError::Server(_) | AppError::Database(_) | AppError::Internal(_) => {
-                (StatusCode::INTERNAL_SERVER_ERROR, "Internal server error".to_string())
-            }
+            AppError::Config(_)
+            | AppError::Server(_)
+            | AppError::Database(_)
+            | AppError::Internal(_) => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                "Internal server error".to_string(),
+            ),
         };
 
         if status.is_server_error() {

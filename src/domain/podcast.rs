@@ -12,5 +12,10 @@ pub trait PodcastProvider: Send + Sync {
     async fn get_episode(&self, id: i64) -> Result<Option<Episode>>;
     async fn trending(&self, limit: i32, categories: Option<&[i32]>) -> Result<Vec<Podcast>>;
     async fn categories(&self) -> Result<Vec<Category>>;
-    async fn random_episodes(&self, limit: i32, language: Option<&str>, categories: Option<&[i32]>) -> Result<Vec<Episode>>;
+    async fn random_episodes(
+        &self,
+        limit: i32,
+        language: Option<&str>,
+        categories: Option<&[i32]>,
+    ) -> Result<Vec<Episode>>;
 }

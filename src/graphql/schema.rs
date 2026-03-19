@@ -6,7 +6,7 @@ use async_graphql::{
 
 use crate::domain::{AudiobookProvider, DataSource, MusicProvider, PodcastProvider};
 use crate::error::AppError;
-use crate::sources::{fan_out_search, SOURCE_TIMEOUT};
+use crate::sources::{SOURCE_TIMEOUT, fan_out_search};
 
 use super::audiobook::AudiobookQuery;
 use super::podcast::PodcastQuery;
@@ -173,12 +173,10 @@ impl MusicQuery {
         let limit = clamp_limit(limit);
         let app_ctx = get_app_context(ctx)?;
         let providers = filter_music_providers(&app_ctx.music_providers, sources.as_deref());
-        Ok(
-            fan_out_search(&providers, SOURCE_TIMEOUT, |p| async move {
-                p.random_tracks(limit).await
-            })
-            .await,
-        )
+        Ok(fan_out_search(&providers, SOURCE_TIMEOUT, |p| async move {
+            p.random_tracks(limit).await
+        })
+        .await)
     }
 
     async fn random_artists(
@@ -190,12 +188,10 @@ impl MusicQuery {
         let limit = clamp_limit(limit);
         let app_ctx = get_app_context(ctx)?;
         let providers = filter_music_providers(&app_ctx.music_providers, sources.as_deref());
-        Ok(
-            fan_out_search(&providers, SOURCE_TIMEOUT, |p| async move {
-                p.random_artists(limit).await
-            })
-            .await,
-        )
+        Ok(fan_out_search(&providers, SOURCE_TIMEOUT, |p| async move {
+            p.random_artists(limit).await
+        })
+        .await)
     }
 
     async fn trending_tracks(
@@ -207,12 +203,10 @@ impl MusicQuery {
         let limit = clamp_limit(limit);
         let app_ctx = get_app_context(ctx)?;
         let providers = filter_music_providers(&app_ctx.music_providers, sources.as_deref());
-        Ok(
-            fan_out_search(&providers, SOURCE_TIMEOUT, |p| async move {
-                p.trending_tracks(limit).await
-            })
-            .await,
-        )
+        Ok(fan_out_search(&providers, SOURCE_TIMEOUT, |p| async move {
+            p.trending_tracks(limit).await
+        })
+        .await)
     }
 
     async fn track(

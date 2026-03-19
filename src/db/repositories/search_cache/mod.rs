@@ -8,6 +8,7 @@ use diesel_async::RunQueryDsl;
 use sha2::{Digest, Sha256};
 use uuid::Uuid;
 
+use crate::audiobook::Audiobook;
 use crate::db::models::{
     ArtistSearchCacheRow, AudiobookSearchCacheRow, NewArtistSearchCacheRow,
     NewAudiobookSearchCacheRow, NewPodcastSearchCacheRow, NewRecordingSearchCacheRow,
@@ -23,7 +24,6 @@ use crate::db::schema::{
     release_group_search_cache, release_search_cache,
 };
 use crate::db::{DbPool, db_error, get_conn, min_cached_at};
-use crate::audiobook::Audiobook;
 use crate::error::Result;
 use crate::musicbrainz::{Artist, Recording, Release, ReleaseGroup};
 use crate::podcast::Podcast;

@@ -88,9 +88,10 @@ pub async fn search_audiobooks(
 
     for book in all_books {
         if let Some(audiobook) = audiobook_from_book(book)
-            && seen.insert(audiobook.id) {
-                results.push(audiobook);
-            }
+            && seen.insert(audiobook.id)
+        {
+            results.push(audiobook);
+        }
     }
 
     results.truncate(base.limit as usize);
@@ -104,9 +105,7 @@ pub async fn get_audiobooks_page(
 ) -> Result<Vec<Audiobook>> {
     let params = LibriVoxParams::new(limit, offset);
 
-    let response: LibriVoxBooksResponse = client
-        .get_with_query("/audiobooks", &params)
-        .await?;
+    let response: LibriVoxBooksResponse = client.get_with_query("/audiobooks", &params).await?;
 
     let books = response.books.unwrap_or_default();
     Ok(books.into_iter().filter_map(audiobook_from_book).collect())

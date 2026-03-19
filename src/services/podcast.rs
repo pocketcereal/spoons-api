@@ -1,9 +1,7 @@
 //! Podcast service implementing cache-first patterns over PodcastIndex API.
 
 use crate::cache::cached::{CacheTtlSeconds, cached_get_optional, cached_search};
-use crate::db::repositories::{
-    EpisodeRepository, PodcastRepository, SearchCacheRepository,
-};
+use crate::db::repositories::{EpisodeRepository, PodcastRepository, SearchCacheRepository};
 use crate::db::{DbPool, spawn_cache_task};
 use crate::error::Result;
 use crate::podcast::{Episode, Podcast};
@@ -145,5 +143,4 @@ impl PodcastService {
         )
         .await
     }
-
 }

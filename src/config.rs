@@ -111,7 +111,10 @@ impl std::fmt::Debug for PodcastIndexConfig {
         f.debug_struct("PodcastIndexConfig")
             .field("enabled", &self.enabled)
             .field("api_key", &self.api_key.as_ref().map(|_| "[REDACTED]"))
-            .field("api_secret", &self.api_secret.as_ref().map(|_| "[REDACTED]"))
+            .field(
+                "api_secret",
+                &self.api_secret.as_ref().map(|_| "[REDACTED]"),
+            )
             .field("base_url", &self.base_url)
             .finish()
     }
@@ -189,10 +192,10 @@ impl Default for CacheConfig {
         Self {
             enabled: true,
             max_entries: 1000,
-            trending_ttl_seconds: 300,  // 5 minutes
-            search_ttl_seconds: 600,    // 10 minutes
-            podcast_ttl_seconds: 86400, // 24 hours
-            episode_ttl_seconds: 3600,  // 1 hour
+            trending_ttl_seconds: 300,     // 5 minutes
+            search_ttl_seconds: 600,       // 10 minutes
+            podcast_ttl_seconds: 86400,    // 24 hours
+            episode_ttl_seconds: 3600,     // 1 hour
             categories_ttl_seconds: 86400, // 24 hours
         }
     }

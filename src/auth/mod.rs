@@ -7,4 +7,4 @@ mod validation;
 pub use claims::Claims;
 pub use config::AuthConfig;
 pub use jwks::fetch_jwks;
-pub use middleware::{auth_layer, AuthLayer};
+pub use middleware::{AuthLayer, auth_layer};

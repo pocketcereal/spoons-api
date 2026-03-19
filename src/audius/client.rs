@@ -122,12 +122,7 @@ impl AudiusClient {
 
         for attempt in 0..max_attempts {
             let url = self.build_url(path);
-            let result = self
-                .shared_client
-                .get(&url)
-                .query(query)
-                .send()
-                .await;
+            let result = self.shared_client.get(&url).query(query).send().await;
 
             match result {
                 Ok(response) if response.status().is_success() => {
@@ -213,8 +208,7 @@ impl AudiusClient {
         let params = AppNameParamOwned {
             app_name: Some(self.app_name.clone()),
         };
-        let response: AudiusResponse<AudiusUser> =
-            self.get_with_fallback(&path, &params).await?;
+        let response: AudiusResponse<AudiusUser> = self.get_with_fallback(&path, &params).await?;
         Ok(response.data)
     }
 
@@ -253,8 +247,7 @@ impl AudiusClient {
         let params = AppNameParamOwned {
             app_name: Some(self.app_name.clone()),
         };
-        let response: AudiusResponse<AudiusTrack> =
-            self.get_with_fallback(&path, &params).await?;
+        let response: AudiusResponse<AudiusTrack> = self.get_with_fallback(&path, &params).await?;
         Ok(response.data)
     }
 }

@@ -206,7 +206,9 @@ async fn test_podcast_query_returns_feature_disabled_when_not_configured() {
     let extensions = error.extensions.as_ref().expect("Should have extensions");
     assert_eq!(
         extensions.get("code"),
-        Some(&async_graphql::Value::String("FEATURE_DISABLED".to_string())),
+        Some(&async_graphql::Value::String(
+            "FEATURE_DISABLED".to_string()
+        )),
     );
 }
 
@@ -230,7 +232,9 @@ async fn test_podcast_episode_query_returns_feature_disabled_when_not_configured
     let extensions = error.extensions.as_ref().expect("Should have extensions");
     assert_eq!(
         extensions.get("code"),
-        Some(&async_graphql::Value::String("FEATURE_DISABLED".to_string())),
+        Some(&async_graphql::Value::String(
+            "FEATURE_DISABLED".to_string()
+        )),
     );
 }
 

@@ -1,8 +1,6 @@
 use crate::audiobook::{Audiobook, Chapter};
 use crate::cache::cached::{CacheTtlSeconds, cached_get_optional, cached_search};
-use crate::db::repositories::{
-    AudiobookRepository, ChapterRepository, SearchCacheRepository,
-};
+use crate::db::repositories::{AudiobookRepository, ChapterRepository, SearchCacheRepository};
 use crate::db::{DbPool, spawn_cache_task};
 use crate::error::Result;
 use crate::librivox::LibriVoxClient;
@@ -47,10 +45,9 @@ impl AudiobookService {
         cached_get_optional(
             AudiobookRepository::get_cached(&self.pool, id, self.cache_ttl),
             async {
-                self.client
-                    .get_audiobook(id)
-                    .await?
-                    .ok_or_else(|| crate::error::AppError::NotFound(format!("Audiobook {} not found", id)))
+                self.client.get_audiobook(id).await?.ok_or_else(|| {
+                    crate::error::AppError::NotFound(format!("Audiobook {} not found", id))
+                })
             },
             move |audiobook: &Audiobook| {
                 let audiobook = audiobook.clone();
@@ -100,11 +97,7 @@ impl AudiobookService {
         .await
     }
 
-    pub async fn get_chapters(
-        &self,
-        audiobook_id: i64,
-        limit: i32,
-    ) -> Result<Vec<Chapter>> {
+    pub async fn get_chapters(&self, audiobook_id: i64, limit: i32) -> Result<Vec<Chapter>> {
         let pool = self.pool.clone();
         let cache_key = audiobook_id.to_string();
         cached_search(

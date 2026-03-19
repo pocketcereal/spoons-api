@@ -132,8 +132,9 @@ impl RecordingRepository {
                 recordings::video.eq(diesel::dsl::sql::<
                     diesel::sql_types::Nullable<diesel::sql_types::Bool>,
                 >("excluded.video")),
-                recordings::artist_credit
-                    .eq(diesel::dsl::sql::<diesel::sql_types::Jsonb>("excluded.artist_credit")),
+                recordings::artist_credit.eq(diesel::dsl::sql::<diesel::sql_types::Jsonb>(
+                    "excluded.artist_credit",
+                )),
                 recordings::updated_at.eq(Utc::now()),
                 recordings::cached_at.eq(Utc::now()),
             ))

@@ -197,7 +197,9 @@ impl ReleaseRepository {
                             )),
                             release_groups::primary_type.eq(diesel::dsl::sql::<
                                 diesel::sql_types::Nullable<diesel::sql_types::Text>,
-                            >("excluded.primary_type")),
+                            >(
+                                "excluded.primary_type"
+                            )),
                             release_groups::secondary_types.eq(diesel::dsl::sql::<
                                 diesel::sql_types::Nullable<diesel::sql_types::Jsonb>,
                             >(
@@ -234,7 +236,9 @@ impl ReleaseRepository {
                         >("excluded.status")),
                         releases::release_date.eq(diesel::dsl::sql::<
                             diesel::sql_types::Nullable<diesel::sql_types::Text>,
-                        >("excluded.release_date")),
+                        >(
+                            "excluded.release_date"
+                        )),
                         releases::country.eq(diesel::dsl::sql::<
                             diesel::sql_types::Nullable<diesel::sql_types::Text>,
                         >("excluded.country")),
@@ -243,10 +247,14 @@ impl ReleaseRepository {
                         >("excluded.barcode")),
                         releases::disambiguation.eq(diesel::dsl::sql::<
                             diesel::sql_types::Nullable<diesel::sql_types::Text>,
-                        >("excluded.disambiguation")),
+                        >(
+                            "excluded.disambiguation"
+                        )),
                         releases::release_group_id.eq(diesel::dsl::sql::<
                             diesel::sql_types::Nullable<diesel::sql_types::Uuid>,
-                        >("excluded.release_group_id")),
+                        >(
+                            "excluded.release_group_id"
+                        )),
                         releases::updated_at.eq(Utc::now()),
                         releases::cached_at.eq(Utc::now()),
                     ))

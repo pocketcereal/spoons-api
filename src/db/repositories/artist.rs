@@ -174,7 +174,8 @@ impl ArtistRepository {
                         .on_conflict(areas::id)
                         .do_update()
                         .set((
-                            areas::name.eq(diesel::dsl::sql::<diesel::sql_types::Text>("excluded.name")),
+                            areas::name
+                                .eq(diesel::dsl::sql::<diesel::sql_types::Text>("excluded.name")),
                             areas::sort_name.eq(diesel::dsl::sql::<
                                 diesel::sql_types::Nullable<diesel::sql_types::Text>,
                             >("excluded.sort_name")),
@@ -190,7 +191,8 @@ impl ArtistRepository {
                     .on_conflict(artists::id)
                     .do_update()
                     .set((
-                        artists::name.eq(diesel::dsl::sql::<diesel::sql_types::Text>("excluded.name")),
+                        artists::name
+                            .eq(diesel::dsl::sql::<diesel::sql_types::Text>("excluded.name")),
                         artists::sort_name.eq(diesel::dsl::sql::<
                             diesel::sql_types::Nullable<diesel::sql_types::Text>,
                         >("excluded.sort_name")),
@@ -205,7 +207,9 @@ impl ArtistRepository {
                         >("excluded.area_id")),
                         artists::disambiguation.eq(diesel::dsl::sql::<
                             diesel::sql_types::Nullable<diesel::sql_types::Text>,
-                        >("excluded.disambiguation")),
+                        >(
+                            "excluded.disambiguation"
+                        )),
                         artists::life_span.eq(diesel::dsl::sql::<
                             diesel::sql_types::Nullable<diesel::sql_types::Jsonb>,
                         >("excluded.life_span")),

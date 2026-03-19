@@ -51,11 +51,7 @@ impl LibriVoxClient {
         endpoints::get_chapters(self, audiobook_id).await
     }
 
-    pub async fn get_audiobooks_page(
-        &self,
-        limit: i32,
-        offset: i32,
-    ) -> Result<Vec<Audiobook>> {
+    pub async fn get_audiobooks_page(&self, limit: i32, offset: i32) -> Result<Vec<Audiobook>> {
         endpoints::get_audiobooks_page(self, limit, offset).await
     }
 }

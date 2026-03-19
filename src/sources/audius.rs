@@ -24,12 +24,18 @@ impl MusicProvider for AudiusProvider {
 
     async fn search_artists(&self, query: &str, limit: i32, offset: i32) -> Result<Vec<Artist>> {
         let users = self.client.search_users(query, limit, offset).await?;
-        Ok(users.into_iter().map(|u| Artist::Audius(u.into())).collect())
+        Ok(users
+            .into_iter()
+            .map(|u| Artist::Audius(u.into()))
+            .collect())
     }
 
     async fn search_tracks(&self, query: &str, limit: i32, offset: i32) -> Result<Vec<Track>> {
         let tracks = self.client.search_tracks(query, limit, offset).await?;
-        Ok(tracks.into_iter().map(|t| Track::Audius(t.into())).collect())
+        Ok(tracks
+            .into_iter()
+            .map(|t| Track::Audius(t.into()))
+            .collect())
     }
 
     async fn get_artist(&self, id: &str) -> Result<Option<Artist>> {
@@ -51,18 +57,27 @@ impl MusicProvider for AudiusProvider {
             .filter(|u| seen.insert(u.id.clone()))
             .collect();
         let sampled = random_sample(unique_users, limit as usize);
-        Ok(sampled.into_iter().map(|u| Artist::Audius(u.into())).collect())
+        Ok(sampled
+            .into_iter()
+            .map(|u| Artist::Audius(u.into()))
+            .collect())
     }
 
     async fn random_tracks(&self, limit: i32) -> Result<Vec<Track>> {
         let pool_size = limit * 3;
         let tracks = self.client.trending_tracks(pool_size).await?;
         let sampled = random_sample(tracks, limit as usize);
-        Ok(sampled.into_iter().map(|t| Track::Audius(t.into())).collect())
+        Ok(sampled
+            .into_iter()
+            .map(|t| Track::Audius(t.into()))
+            .collect())
     }
 
     async fn trending_tracks(&self, limit: i32) -> Result<Vec<Track>> {
         let tracks = self.client.trending_tracks(limit).await?;
-        Ok(tracks.into_iter().map(|t| Track::Audius(t.into())).collect())
+        Ok(tracks
+            .into_iter()
+            .map(|t| Track::Audius(t.into()))
+            .collect())
     }
 }

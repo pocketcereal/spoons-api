@@ -43,11 +43,7 @@ impl AudiobookRepository {
         Ok(results.into_iter().map(Into::into).collect())
     }
 
-    pub async fn get_cached(
-        pool: &DbPool,
-        id: i64,
-        ttl_seconds: i64,
-    ) -> Result<Option<Audiobook>> {
+    pub async fn get_cached(pool: &DbPool, id: i64, ttl_seconds: i64) -> Result<Option<Audiobook>> {
         let min_cached_at = min_cached_at(ttl_seconds)?;
         let mut conn = get_conn(pool).await?;
 
