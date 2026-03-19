@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use async_graphql::{Context, Object, Result};
 
-use crate::domain::{AudiobookProvider, MusicProvider, PodcastProvider};
+use crate::domain::{AudiobookProvider, DataSource, MusicProvider, PodcastProvider};
 use crate::error::AppError;
 use crate::graphql::{clamp_limit, get_app_context, validate_query};
 use crate::sources::{fan_out_search, SOURCE_TIMEOUT};
@@ -31,6 +31,20 @@ fn domain_providers<'a, T: ?Sized>(
     }
 }
 
+fn filter_music_providers(
+    providers: &[Arc<dyn MusicProvider>],
+    sources: &Option<Vec<DataSource>>,
+) -> Vec<Arc<dyn MusicProvider>> {
+    match sources {
+        Some(allowed) => providers
+            .iter()
+            .filter(|p| allowed.contains(&p.source_id()))
+            .cloned()
+            .collect(),
+        None => providers.to_vec(),
+    }
+}
+
 fn set_or_warn<T>(
     field: &mut Option<T>,
     result: std::result::Result<Option<T>, AppError>,
@@ -52,6 +66,7 @@ impl UnifiedQuery {
         ctx: &Context<'_>,
         query: String,
         domains: Option<Vec<ContentDomain>>,
+        music_sources: Option<Vec<DataSource>>,
         #[graphql(default = 20)] limit: i32,
     ) -> Result<SearchResults> {
         let query = validate_query(&query)?;
@@ -59,8 +74,13 @@ impl UnifiedQuery {
         let app_ctx = get_app_context(ctx)?;
         let domains = resolve_domains(domains);
 
+        let music_providers = filter_music_providers(
+            domain_providers(&app_ctx.music_providers, &domains, ContentDomain::Music),
+            &music_sources,
+        );
+
         let (music, podcasts, audiobooks) = tokio::join!(
-            search_music(domain_providers(&app_ctx.music_providers, &domains, ContentDomain::Music), &query, limit),
+            search_music(&music_providers, &query, limit),
             search_podcasts(domain_providers(&app_ctx.podcast_providers, &domains, ContentDomain::Podcasts), &query, limit),
             search_audiobooks(domain_providers(&app_ctx.audiobook_providers, &domains, ContentDomain::Audiobooks), &query, limit),
         );
