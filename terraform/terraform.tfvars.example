@@ -1,0 +1,10 @@
+credentials_file         = "~/.config/gcloud/sa-key.json"
+database_url             = "postgresql://user:password@db.your-project.supabase.co:5432/postgres"
+podcast_index_api_key    = "your-podcast-index-api-key"
+podcast_index_api_secret = "your-podcast-index-api-secret"
+ghcr_user                = "your-github-username"
+ghcr_token               = "ghp_your-github-pat"
+supabase_url             = "https://your-project.supabase.co"
+jwt_secret               = "your-jwt-secret"
+ssh_source_ranges        = ["YOUR.IP.HERE/32"]
+image_tag                = "latest"

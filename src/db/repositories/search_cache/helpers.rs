@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-pub fn all_ids_resolved(entity: &str, expected: usize, actual: usize) -> bool {
+fn all_ids_resolved(entity: &str, expected: usize, actual: usize) -> bool {
     if actual < expected {
         tracing::warn!(
             entity = entity,
