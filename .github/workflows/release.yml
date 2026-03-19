@@ -1,9 +1,7 @@
 name: Release
 
 on:
-  push:
-    tags:
-      - 'v*'
+  workflow_dispatch: # disabled until Dockerfile MSRV is validated
 
 env:
   REGISTRY: ${{ vars.REGISTRY || 'ghcr.io' }}
