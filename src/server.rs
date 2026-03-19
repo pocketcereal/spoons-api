@@ -86,7 +86,6 @@ pub async fn run(config: &AppConfig) -> Result<()> {
     let music = MusicService::new(
         db_pool.clone(),
         musicbrainz_client,
-        None,
         config.database.cache_ttl_seconds,
     );
 

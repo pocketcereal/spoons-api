@@ -24,7 +24,7 @@ async fn setup_graphql_test() -> (TestDb, Schema<QueryRoot, EmptyMutation, Empty
 
     let client = MusicBrainzClient::new("https://musicbrainz.org/ws/2")
         .expect("Failed to create MusicBrainz client");
-    let music = MusicService::new(test_db.pool.clone(), client, None, 86400);
+    let music = MusicService::new(test_db.pool.clone(), client, 86400);
     let app_context = AppContext {
         music_providers: vec![Arc::new(MusicBrainzProvider::new(music))],
         podcast_providers: vec![],

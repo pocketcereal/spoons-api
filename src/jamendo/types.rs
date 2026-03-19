@@ -1,20 +1,8 @@
 use serde::Deserialize;
 
-// `headers` is part of the Jamendo API contract; the provider will use it for error inspection.
-#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct JamendoResponse<T> {
-    pub headers: JamendoHeaders,
     pub results: Vec<T>,
-}
-
-// Fields are part of the public API response shape; the provider will use them.
-#[allow(dead_code)]
-#[derive(Debug, Deserialize)]
-pub struct JamendoHeaders {
-    pub status: String,
-    pub code: i32,
-    pub results_count: i32,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -139,9 +127,6 @@ mod tests {
         }"#;
 
         let response: JamendoResponse<JamendoTrack> = serde_json::from_str(json).unwrap();
-        assert_eq!(response.headers.status, "success");
-        assert_eq!(response.headers.code, 0);
-        assert_eq!(response.headers.results_count, 1);
         assert_eq!(response.results.len(), 1);
         assert_eq!(response.results[0].id, "123");
     }

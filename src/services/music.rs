@@ -1,6 +1,5 @@
-//! Music service implementing cache-first patterns over MusicBrainz and Audius APIs.
+//! Music service implementing cache-first patterns over MusicBrainz.
 
-use crate::audius::AudiusClient;
 use crate::cache::cached::{CacheTtlSeconds, cached_get, cached_search};
 use crate::db::repositories::{
     ArtistRepository, RecordingRepository, ReleaseGroupRepository, ReleaseRepository,
@@ -10,12 +9,10 @@ use crate::db::{DbPool, spawn_cache_task};
 use crate::error::Result;
 use crate::musicbrainz::{Artist, MusicBrainzClient, Recording, Release, ReleaseGroup};
 
-/// Music service with cache-first access to MusicBrainz and Audius.
 #[derive(Clone)]
 pub struct MusicService {
     pool: DbPool,
     mb_client: MusicBrainzClient,
-    audius_client: Option<AudiusClient>,
     cache_ttl: CacheTtlSeconds,
 }
 
@@ -23,19 +20,13 @@ impl MusicService {
     pub fn new(
         pool: DbPool,
         mb_client: MusicBrainzClient,
-        audius_client: Option<AudiusClient>,
         cache_ttl: CacheTtlSeconds,
     ) -> Self {
         Self {
             pool,
             mb_client,
-            audius_client,
             cache_ttl,
         }
-    }
-
-    pub fn audius_client(&self) -> Option<&AudiusClient> {
-        self.audius_client.as_ref()
     }
 
     pub fn mb_client(&self) -> &MusicBrainzClient {
