@@ -29,11 +29,8 @@ echo '${ghcr_token}' | docker login ghcr.io -u '${ghcr_user}' --password-stdin
 # Write .env file
 cat > .env <<'ENVEOF'
 DATABASE_URL=${database_url}
-PODCAST_INDEX_API_KEY=${podcast_index_api_key}
-PODCAST_INDEX_API_SECRET=${podcast_index_api_secret}
-SUPABASE_URL=${supabase_url}
-JWT_SECRET=${jwt_secret}
-REDIS_URL=redis://redis:6379
+SPOONS_SUPABASE_URL=${supabase_url}
+SPOONS_JWT_SECRET=${jwt_secret}
 ENVEOF
 
 # Write config files (rendered by Terraform from templates/)

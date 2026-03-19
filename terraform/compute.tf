@@ -32,6 +32,7 @@ resource "google_compute_instance" "spoons_api" {
     config_yaml = templatefile("templates/config.yaml", {
       podcast_index_api_key    = var.podcast_index_api_key
       podcast_index_api_secret = var.podcast_index_api_secret
+      jamendo_client_id        = var.jamendo_client_id
     })
   })
 }

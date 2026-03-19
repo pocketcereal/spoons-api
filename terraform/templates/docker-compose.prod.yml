@@ -24,9 +24,6 @@ services:
       - .env
     volumes:
       - ./config.yaml:/app/config.yaml:ro
-    depends_on:
-      redis:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "-sf", "http://localhost:4000/healthz"]
       interval: 30s
@@ -34,19 +31,6 @@ services:
       start_period: 15s
       retries: 3
 
-  redis:
-    image: redis:7-alpine
-    container_name: spoons-redis
-    restart: unless-stopped
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
 volumes:
   caddy_data:
   caddy_config:
-  redis_data:

@@ -43,6 +43,12 @@ variable "jwt_secret" {
   sensitive   = true
 }
 
+variable "jamendo_client_id" {
+  description = "Jamendo API client ID"
+  type        = string
+  sensitive   = true
+}
+
 variable "ssh_source_ranges" {
   description = "CIDR ranges allowed to SSH into the instance"
   type        = list(string)

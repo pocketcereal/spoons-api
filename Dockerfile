@@ -33,6 +33,7 @@ FROM debian:bookworm-slim AS runtime
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y \
     ca-certificates \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user
@@ -57,7 +58,7 @@ EXPOSE 4000
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD ["/app/spoons-api", "start", "--help"]
+    CMD ["curl", "-sf", "http://localhost:4000/healthz"]
 
 # Run the binary
 ENTRYPOINT ["/app/spoons-api"]
