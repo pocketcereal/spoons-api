@@ -1,7 +1,11 @@
-name: "Release: ${{ github.ref_name }}"
+name: Release
+
+run-name: "Release: ${{ github.ref_name }}"
 
 on:
-  workflow_dispatch: # disabled until Dockerfile MSRV is validated
+  push:
+    tags:
+      - 'v*'
 
 env:
   REGISTRY: ghcr.io
@@ -57,11 +61,14 @@ jobs:
 
       - name: Summary
         run: |
-          echo "## Release: ${{ github.ref_name }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "## Release: $RELEASE_TAG" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "**Image:** \`${{ env.REGISTRY }}/${{ env.REPOSITORY }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Image:** \`$REGISTRY/$REPOSITORY\`" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "### Tags" >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
-          echo "${{ steps.meta.outputs.tags }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "$DOCKER_TAGS" >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+          DOCKER_TAGS: ${{ steps.meta.outputs.tags }}
