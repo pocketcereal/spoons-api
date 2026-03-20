@@ -62,9 +62,9 @@ Search for artists across all configured music sources.
 query {
   searchArtists(
     query: "Radiohead"
-    source: MUSIC_BRAINZ  # optional: MUSIC_BRAINZ | AUDIUS | JAMENDO
-    limit: 25              # optional, default 25, max 100
-    offset: 0              # optional, default 0, max 10000
+    sources: [MUSIC_BRAINZ]  # optional array: MUSIC_BRAINZ | AUDIUS | JAMENDO — omit for all
+    limit: 25                # optional, default 25, max 100
+    offset: 0                # optional, default 0, max 10000
   ) {
     __typename
     ... on MusicBrainzArtist {
@@ -86,7 +86,7 @@ query {
 }
 ```
 
-When `source` is omitted, all configured sources are queried in parallel with a 10s timeout per source. Results are combined. If a source fails or times out, its results are silently omitted.
+When `sources` is omitted, all configured sources are queried in parallel with a 10s timeout per source. Results are combined. If a source fails or times out, its results are silently omitted.
 
 ### artist
 
@@ -112,9 +112,9 @@ Search for tracks/recordings across all configured music sources.
 query {
   searchTracks(
     query: "Creep"
-    source: null  # optional: MUSIC_BRAINZ | AUDIUS | JAMENDO
-    limit: 25     # optional, default 25, max 100
-    offset: 0     # optional, default 0, max 10000
+    sources: [AUDIUS, JAMENDO]  # optional array — omit for all
+    limit: 25                   # optional, default 25, max 100
+    offset: 0                   # optional, default 0, max 10000
   ) {
     __typename
     ... on MusicBrainzTrack {
@@ -159,8 +159,8 @@ Get random tracks for discovery.
 ```graphql
 query {
   randomTracks(
-    source: null  # optional: MUSIC_BRAINZ | AUDIUS | JAMENDO
-    limit: 10     # optional, default 10, max 100
+    sources: [AUDIUS]  # optional array — omit for all
+    limit: 10          # optional, default 10, max 100
   ) {
     __typename
     ... on MusicBrainzTrack { id title artistName }
@@ -181,8 +181,8 @@ Get random artists for discovery.
 ```graphql
 query {
   randomArtists(
-    source: null  # optional: MUSIC_BRAINZ | AUDIUS | JAMENDO
-    limit: 10     # optional, default 10, max 100
+    sources: [MUSIC_BRAINZ, AUDIUS]  # optional array — omit for all
+    limit: 10                         # optional, default 10, max 100
   ) {
     __typename
     ... on MusicBrainzArtist { id name country }
@@ -195,6 +195,27 @@ query {
 - **MusicBrainz**: Random offset into search index
 - **Audius**: Unique artists extracted from trending tracks
 - **Jamendo**: Unique artists extracted from popular tracks
+
+### trendingTracks
+
+Get trending/popular tracks. Not all sources support trending — MusicBrainz has no trending concept and returns empty results.
+
+```graphql
+query {
+  trendingTracks(
+    sources: [AUDIUS, JAMENDO]  # optional array — omit for all
+    limit: 20                    # optional, default 20, max 100
+  ) {
+    __typename
+    ... on AudiusTrack { id title artistName playCount artworkUrl }
+    ... on JamendoTrack { id title artistName audioUrl }
+  }
+}
+```
+
+- **Audius**: Returns tracks from `/tracks/trending` endpoint
+- **Jamendo**: Returns tracks ordered by popularity
+- **MusicBrainz**: No trending data — returns empty results
 
 ### version
 
