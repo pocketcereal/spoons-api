@@ -1,3 +1,8 @@
+variable "gcp_project" {
+  description = "GCP project ID to deploy into"
+  type        = string
+}
+
 variable "credentials_file" {
   description = "Path to GCP service account JSON key file"
   type        = string

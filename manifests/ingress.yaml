@@ -3,9 +3,6 @@ kind: Ingress
 metadata:
   name: spoons-api
   namespace: spoons-api
-  annotations:
-    tailscale.com/expose: "true"
-    tailscale.com/hostname: spoons-api
 spec:
   ingressClassName: traefik
   rules:
