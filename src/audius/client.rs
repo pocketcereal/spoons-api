@@ -97,7 +97,7 @@ impl AudiusClient {
 
     fn current_host(&self) -> String {
         let index = self.current_host_index.load(Ordering::Relaxed) % self.hosts.len();
-        format!("{}/v1", &self.hosts[index])
+        format!("{}/v1", self.hosts[index])
     }
 
     fn rotate_host(&self) {
