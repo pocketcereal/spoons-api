@@ -1,6 +1,7 @@
 /target
 .env
 .serena
+.claude
 
 # Override global gitignore for agent config files
 !CLAUDE.md
