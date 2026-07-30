@@ -1,3 +1,4 @@
+gcp_project              = "your-gcp-project-id"
 credentials_file         = "~/.config/gcloud/sa-key.json"
 database_url             = "postgresql://user:password@db.your-project.supabase.co:5432/postgres"
 podcast_index_api_key    = "your-podcast-index-api-key"

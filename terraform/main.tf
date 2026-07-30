@@ -11,6 +11,6 @@ terraform {
 
 provider "google" {
   credentials = file(var.credentials_file)
-  project     = "archaeopteryxresearch"
+  project     = var.gcp_project
   region      = "us-central1"
 }
